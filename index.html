@@ -1,0 +1,1351 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Milei Bros</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden; font-family: 'Arial Black', Arial, sans-serif; }
+canvas { display: block; image-rendering: pixelated; }
+#loading {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+  background: #0a0a1a; display: flex; flex-direction: column;
+  justify-content: center; align-items: center; z-index: 9999; color: #FFD700;
+}
+#loading h1 { font-size: 48px; text-shadow: 0 0 20px #FFD700; margin-bottom: 20px; letter-spacing: 4px; }
+#loading p { font-size: 16px; color: #aaa; margin-bottom: 30px; }
+#progress-container { width: 400px; height: 20px; background: #222; border: 2px solid #FFD700; border-radius: 4px; overflow: hidden; }
+#progress-bar { height: 100%; background: linear-gradient(90deg, #FFD700, #FFA500); width: 0%; transition: width 0.1s; }
+#progress-text { margin-top: 10px; font-size: 14px; color: #FFD700; }
+#slogan { margin-top: 30px; font-size: 20px; color: #fff; font-style: italic; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <h1>⚡ MILEI BROS ⚡</h1>
+  <p>Cargando assets del juego...</p>
+  <div id="progress-container"><div id="progress-bar"></div></div>
+  <div id="progress-text">0%</div>
+  <div id="slogan">¡VIVA LA LIBERTAD, CARAJO!</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<script>
+'use strict';
+
+// ─────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────
+const BASE = 'https://albertoezequielhernandez-prog.github.io/sprite-Milei-Bros/';
+const W = 800, H = 450;
+
+// NES Mario physics at 60fps (converted to px/s for Phaser)
+const WALK_SPEED   = 90;   // 1.5 px/frame * 60
+const RUN_SPEED    = 150;  // 2.5 px/frame * 60
+const ACCEL        = 600;  // ~12 frames to max speed
+const DRAG         = 700;
+const GRAVITY      = 1400;
+const JUMP_VEL     = -500;
+const DJUMP_VEL    = -380;
+
+// Level configs
+const LEVELS = [
+  { key:'Level1', bg:'bg_casa_rosada',  name:'CASA ROSADA',   boss:'del_cano',  bossName:'NICO DEL CAÑO',   ally:'ally_alberdi',  allyName:'ALBERDI',   bossHP:100 },
+  { key:'Level2', bg:'bg_congreso',     name:'EL CONGRESO',   boss:'massa',     bossName:'MASSA',            ally:'ally_cavallo',  allyName:'CAVALLO',   bossHP:120 },
+  { key:'Level3', bg:'bg_pantano',      name:'EL PANTANO',    boss:'kicillof',  bossName:'KICILLOF',         ally:'ally_sarmiento',allyName:'SARMIENTO', bossHP:130 },
+  { key:'Level4', bg:'bg_comodoro',     name:'COMODORO PY',   boss:'cristina',  bossName:'CFK',              ally:'ally_nisman',   allyName:'NISMAN',    bossHP:150 },
+  { key:'Level5', bg:'bg_banco',        name:'BANCO CENTRAL', boss:'larreta',   bossName:'LARRETA',          ally:'ally_adam_smith',allyName:'ADAM SMITH',bossHP:140 },
+  { key:'Level6', bg:'bg_senado',       name:'EL SENADO',     boss:'villarruel',bossName:'VILLARRUEL',       ally:'ally_san_martin',allyName:'SAN MARTÍN',bossHP:160 },
+  { key:'Level7', bg:'bg_afip',         name:'LA AFIP',       boss:'moreno',    bossName:'MORENO',           ally:'ally_friedman', allyName:'FRIEDMAN',  bossHP:180 },
+  { key:'Level8', bg:'bg_fmi',          name:'EL FMI',        boss:'boss_fmi',  bossName:'LA CASTA SUPREMA', ally:'ally_hayek',    allyName:'HAYEK',     bossHP:300 },
+];
+
+// Shared game state across levels
+window.gameState = { lives: 3, coins: 0, fiscal: 50, currentLevel: 0, score: 0 };
+
+// ─────────────────────────────────────────────
+// BOOT / PRELOAD SCENE
+// ─────────────────────────────────────────────
+class BootScene extends Phaser.Scene {
+  constructor() { super('Boot'); }
+
+  preload() {
+    const bar = document.getElementById('progress-bar');
+    const txt = document.getElementById('progress-text');
+    this.load.on('progress', v => {
+      bar.style.width = (v*100)+'%';
+      txt.textContent = Math.floor(v*100)+'%';
+    });
+    this.load.on('complete', () => {
+      document.getElementById('loading').style.display = 'none';
+    });
+
+    // ── Backgrounds ──
+    this.load.image('bg_casa_rosada', BASE+'assets/backgrounds/Casa%20rosada.png');
+    this.load.image('bg_congreso',    BASE+'assets/backgrounds/Congreso.png');
+    this.load.image('bg_pantano',     BASE+'assets/backgrounds/pantano.png');
+    this.load.image('bg_comodoro',    BASE+'assets/backgrounds/Comodoro%20py.png');
+    this.load.image('bg_banco',       BASE+'assets/backgrounds/banco%20central.png');
+    this.load.image('bg_senado',      BASE+'assets/backgrounds/senado.png');
+    this.load.image('bg_afip',        BASE+'assets/backgrounds/AFIP.png');
+    this.load.image('bg_fmi',         BASE+'assets/backgrounds/FMI.png');
+
+    // ── Player ──
+    this.load.spritesheet('milei', BASE+'assets/sprites/spritesheets%20milei%20optimizado.png',
+      { frameWidth:96, frameHeight:96 });
+
+    // ── Enemies ──
+    this.load.spritesheet('cucaracha_k', BASE+'assets/sprites/spritesheets%20cucaracha%20k%20optimizado.png',
+      { frameWidth:64, frameHeight:64 });
+    this.load.spritesheet('cucaracha_k_armada', BASE+'assets/sprites/spritesheets%20cucaracha%20k%20armada%20optimizado.png',
+      { frameWidth:64, frameHeight:64 });
+    this.load.spritesheet('sindicalista', BASE+'assets/sprites/spritesheets%20sindicalista%20optmizado.png',
+      { frameWidth:96, frameHeight:96 });
+
+    // ── Bosses ──
+    this.load.spritesheet('del_cano',   BASE+'assets/sprites/spritesheets%20del%20ca%C3%B1o%20optimizado.png', { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('massa',      BASE+'assets/sprites/spritesheets%20massa%20optimizado.png',           { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('kicillof',   BASE+'assets/sprites/spritesheets%20kicillof%20optimizado.png',        { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('cristina',   BASE+'assets/sprites/spritesheets%20cristina%20optimizado.png',        { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('larreta',    BASE+'assets/sprites/spritesheets%20larreta%20optimizado.png',         { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('villarruel', BASE+'assets/sprites/spritesheets%20villarruel%20optimizado.png',      { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('morsa',      BASE+'assets/sprites/spritesheets%20morsa%20fernandez.png',            { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('moreno',     BASE+'assets/bosses/spritesheets%20moreno%20optimizado.png',           { frameWidth:96,frameHeight:96 });
+    this.load.spritesheet('boss_fmi',   BASE+'assets/bosses/boss%20fmi.png',                                   { frameWidth:128,frameHeight:128 });
+    this.load.spritesheet('macri_gato', BASE+'assets/sprites/spritesheets%20macri%20gato_macri_transparent%20opti....png', { frameWidth:96,frameHeight:96 });
+
+    // ── Allies (static images) ──
+    this.load.image('ally_alberdi',   BASE+'assets/allies/sprite%20alberdi%20optimizado.png');
+    this.load.image('ally_nisman',    BASE+'assets/allies/sprite%20nismann%20optimizado.png');
+    this.load.image('ally_cavallo',   BASE+'assets/allies/sprite%20cavallo%20optimizado.png');
+    this.load.image('ally_sarmiento', BASE+'assets/allies/sprite%20sarmiento%20optimizado.png');
+    this.load.image('ally_adam_smith',BASE+'assets/allies/sprite%20adam%20smith%20optimizado.png');
+    this.load.image('ally_san_martin',BASE+'assets/allies/sprite%20San%20Martin%20optimizado.png');
+    this.load.image('ally_friedman',  BASE+'assets/allies/sprite%20friedman%20optimizado.png');
+    this.load.image('ally_hayek',     BASE+'assets/allies/sprite%20hayek%20optimizado.png');
+    this.load.image('ally_trump',     BASE+'assets/allies/sprite%20Trump%20optimizado.png');
+    this.load.image('ally_elon',      BASE+'assets/allies/sprite%20elon%20musk%20optimizado.png');
+    this.load.image('ally_espert',    BASE+'assets/allies/sprite%20Espert%20optimizado.png');
+    this.load.image('ally_bullrich',  BASE+'assets/allies/sprite%20bullrich%20optimizado.png');
+
+    // ── Power-ups ──
+    this.load.spritesheet('powerups', BASE+'assets/powerups/sprites%20power-ups.png',
+      { frameWidth:48, frameHeight:48 });
+
+    // ── Audio ──
+    this.load.audio('voz_zurdos', BASE+'assets/music/voz_milei_zurdos.mp3');
+    this.load.audio('voz_viva',   BASE+'assets/music/voz_milei_viva_libertad.mp3');
+    this.load.audio('voz_completo',BASE+'assets/music/voz_milei_completo.mp3');
+  }
+
+  create() {
+    this.createAllAnimations();
+    this.scene.start('Title');
+  }
+
+  createAllAnimations() {
+    const a = this.anims;
+
+    // ── Milei (13 frames horizontal) ──
+    // Frames: 0-1=idle, 2-5=walk, 6=jump, 7-8=chainsaw_idle, 9-10=attack, 11=hit, 12-13=death
+    a.create({ key:'milei_idle',   frames: a.generateFrameNumbers('milei',{start:0,end:1}),   frameRate:4,  repeat:-1 });
+    a.create({ key:'milei_walk',   frames: a.generateFrameNumbers('milei',{start:2,end:5}),   frameRate:12, repeat:-1 });
+    a.create({ key:'milei_jump',   frames: a.generateFrameNumbers('milei',{start:6,end:6}),   frameRate:1,  repeat:-1 });
+    a.create({ key:'milei_attack', frames: a.generateFrameNumbers('milei',{start:7,end:10}),  frameRate:14, repeat:0  });
+    a.create({ key:'milei_hit',    frames: a.generateFrameNumbers('milei',{start:11,end:11}), frameRate:1,  repeat:0  });
+    a.create({ key:'milei_death',  frames: a.generateFrameNumbers('milei',{start:11,end:12}), frameRate:6,  repeat:0  });
+
+    // ── Cucaracha K (7 frames: 0-2=walk, 3-6=death) ──
+    a.create({ key:'cuca_walk',  frames: a.generateFrameNumbers('cucaracha_k',{start:0,end:2}), frameRate:8, repeat:-1 });
+    a.create({ key:'cuca_death', frames: a.generateFrameNumbers('cucaracha_k',{start:3,end:6}), frameRate:8, repeat:0  });
+
+    // ── Cucaracha K Armada (8 frames) ──
+    a.create({ key:'cuca_arm_walk',  frames: a.generateFrameNumbers('cucaracha_k_armada',{start:0,end:2}), frameRate:8, repeat:-1 });
+    a.create({ key:'cuca_arm_hit',   frames: a.generateFrameNumbers('cucaracha_k_armada',{start:3,end:5}), frameRate:8, repeat:0  });
+    a.create({ key:'cuca_arm_death', frames: a.generateFrameNumbers('cucaracha_k_armada',{start:6,end:7}), frameRate:6, repeat:0  });
+
+    // ── Sindicalista (9 frames) ──
+    a.create({ key:'sind_walk',   frames: a.generateFrameNumbers('sindicalista',{start:0,end:2}), frameRate:6, repeat:-1 });
+    a.create({ key:'sind_attack', frames: a.generateFrameNumbers('sindicalista',{start:3,end:5}), frameRate:8, repeat:0  });
+    a.create({ key:'sind_death',  frames: a.generateFrameNumbers('sindicalista',{start:6,end:8}), frameRate:6, repeat:0  });
+
+    // ── Bosses ──
+    const bossKeys = [
+      { key:'del_cano',   idle:[0,1], atk:[2,7],  death:[8,11]  },
+      { key:'massa',      idle:[0,1], atk:[2,8],  death:[9,11]  },
+      { key:'kicillof',   idle:[0,1], atk:[2,8],  death:[9,10]  },
+      { key:'cristina',   idle:[0,1], atk:[2,8],  death:[9,10]  },
+      { key:'larreta',    idle:[0,1], atk:[2,8],  death:[9,11]  },
+      { key:'villarruel', idle:[0,1], atk:[2,7],  death:[8,8]   },
+      { key:'morsa',      idle:[0,1], atk:[3,6],  death:[7,8]   },
+      { key:'moreno',     idle:[0,1], atk:[4,9],  death:[10,11] },
+    ];
+    bossKeys.forEach(b => {
+      a.create({ key:`${b.key}_idle`,  frames: a.generateFrameNumbers(b.key,{start:b.idle[0],end:b.idle[1]}), frameRate:4, repeat:-1 });
+      a.create({ key:`${b.key}_atk`,   frames: a.generateFrameNumbers(b.key,{start:b.atk[0],end:b.atk[1]}),  frameRate:8, repeat:0  });
+      a.create({ key:`${b.key}_death`, frames: a.generateFrameNumbers(b.key,{start:b.death[0],end:b.death[1]}),frameRate:6,repeat:0  });
+    });
+
+    // ── Boss FMI (4x3 = 12 frames) ──
+    a.create({ key:'fmi_idle',   frames: a.generateFrameNumbers('boss_fmi',{start:0,end:1}),   frameRate:4, repeat:-1 });
+    a.create({ key:'fmi_atk1',   frames: a.generateFrameNumbers('boss_fmi',{start:2,end:3}),   frameRate:8, repeat:0  });
+    a.create({ key:'fmi_atk2',   frames: a.generateFrameNumbers('boss_fmi',{start:4,end:5}),   frameRate:8, repeat:0  });
+    a.create({ key:'fmi_atk3',   frames: a.generateFrameNumbers('boss_fmi',{start:6,end:7}),   frameRate:8, repeat:0  });
+    a.create({ key:'fmi_hit',    frames: a.generateFrameNumbers('boss_fmi',{start:10,end:10}), frameRate:1, repeat:0  });
+    a.create({ key:'fmi_death',  frames: a.generateFrameNumbers('boss_fmi',{start:11,end:11}), frameRate:6, repeat:0  });
+
+    // ── Macri Gato (9 frames) ──
+    a.create({ key:'macri_idle', frames: a.generateFrameNumbers('macri_gato',{start:0,end:2}), frameRate:4, repeat:-1 });
+    a.create({ key:'macri_good', frames: a.generateFrameNumbers('macri_gato',{start:4,end:4}), frameRate:4, repeat:0  });
+    a.create({ key:'macri_bad',  frames: a.generateFrameNumbers('macri_gato',{start:5,end:5}), frameRate:4, repeat:0  });
+    a.create({ key:'macri_exit', frames: a.generateFrameNumbers('macri_gato',{start:6,end:8}), frameRate:6, repeat:0  });
+
+    // ── Power-ups (5 items x 4 frames each = 20 frames horizontal) ──
+    a.create({ key:'pu_dollar',   frames: a.generateFrameNumbers('powerups',{start:0, end:3}),  frameRate:8, repeat:-1 });
+    a.create({ key:'pu_chainsaw', frames: a.generateFrameNumbers('powerups',{start:4, end:7}),  frameRate:8, repeat:-1 });
+    a.create({ key:'pu_hayek',    frames: a.generateFrameNumbers('powerups',{start:8, end:11}), frameRate:8, repeat:-1 });
+    a.create({ key:'pu_mane',     frames: a.generateFrameNumbers('powerups',{start:12,end:15}), frameRate:8, repeat:-1 });
+    a.create({ key:'pu_shield',   frames: a.generateFrameNumbers('powerups',{start:16,end:19}), frameRate:8, repeat:-1 });
+  }
+}
+
+// ─────────────────────────────────────────────
+// TITLE SCENE
+// ─────────────────────────────────────────────
+class TitleScene extends Phaser.Scene {
+  constructor() { super('Title'); }
+
+  create() {
+    window.gameState = { lives:3, coins:0, fiscal:50, currentLevel:0, score:0 };
+
+    // Background
+    const bg = this.add.image(W/2, H/2, 'bg_casa_rosada').setDisplaySize(W,H);
+
+    // Dark overlay
+    this.add.rectangle(W/2, H/2, W, H, 0x000022, 0.6);
+
+    // Stars particle effect
+    for(let i=0; i<30; i++) {
+      const star = this.add.circle(
+        Phaser.Math.Between(0,W), Phaser.Math.Between(0,H),
+        Phaser.Math.Between(1,3), 0xFFFFFF,
+        Phaser.Math.FloatBetween(0.3,1)
+      );
+      this.tweens.add({ targets:star, alpha:0, duration:Phaser.Math.Between(500,2000), yoyo:true, repeat:-1, delay:Phaser.Math.Between(0,2000) });
+    }
+
+    // Logo shadow
+    this.add.text(W/2+4, 76, '⚡ MILEI BROS ⚡', {
+      fontSize:'52px', fill:'#000', fontFamily:'Arial Black', fontStyle:'bold'
+    }).setOrigin(0.5);
+
+    // Logo
+    const title = this.add.text(W/2, 72, '⚡ MILEI BROS ⚡', {
+      fontSize:'52px', fill:'#FFD700',
+      stroke:'#8B4513', strokeThickness:6,
+      fontFamily:'Arial Black', fontStyle:'bold'
+    }).setOrigin(0.5);
+
+    this.tweens.add({ targets:title, scaleX:1.03, scaleY:1.03, duration:800, yoyo:true, repeat:-1 });
+
+    // Milei hero sprite
+    const hero = this.add.sprite(W/2, H/2-10, 'milei').setScale(2.5);
+    hero.play('milei_idle');
+    this.tweens.add({ targets:hero, y:H/2-20, duration:600, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
+
+    // Golden aura
+    const aura = this.add.circle(W/2, H/2-10, 70, 0xFFD700, 0.15);
+    this.tweens.add({ targets:aura, scaleX:1.3, scaleY:1.3, alpha:0, duration:800, yoyo:true, repeat:-1 });
+
+    // Enemy cucarachas on sides (animated)
+    const cuL = this.add.sprite(60, H-80, 'cucaracha_k').setScale(2.5).setFlipX(false);
+    cuL.play('cuca_walk');
+    const cuR = this.add.sprite(W-60, H-80, 'cucaracha_k').setScale(2.5).setFlipX(true);
+    cuR.play('cuca_walk');
+
+    // Coins
+    [100,200,300,500,600,700].forEach(x => {
+      const c = this.add.sprite(x, H-40, 'powerups').setScale(1.2);
+      c.play('pu_dollar');
+    });
+
+    // Menu options
+    const menuCfg = [
+      { label:'▶  NUEVA PARTIDA', action:() => this.scene.start('GameScene') },
+      { label:'⌨  CONTROLES',     action:() => this.showControls() },
+      { label:'🏆  RANKING',       action:() => {} },
+    ];
+
+    let sel = 0;
+    const menuItems = menuCfg.map((item, i) =>
+      this.add.text(W/2, H/2+80+i*38, item.label, {
+        fontSize:'20px', fill: i===0 ? '#FFD700':'#FFFFFF',
+        fontFamily:'Arial Black',
+        stroke:'#000', strokeThickness:3
+      }).setOrigin(0.5)
+    );
+
+    const updateMenu = () => menuItems.forEach((m,i) => m.setFill(i===sel ? '#FFD700':'#FFFFFF').setScale(i===sel?1.1:1));
+
+    // Press start blink
+    const ps = this.add.text(W/2, H-30, '✦ PRESS ENTER TO START ✦', {
+      fontSize:'14px', fill:'#fff', fontFamily:'Arial'
+    }).setOrigin(0.5);
+    this.tweens.add({ targets:ps, alpha:0, duration:500, yoyo:true, repeat:-1 });
+
+    // Copyright
+    this.add.text(10, H-18, '© 2025 VIVA LA LIBERTAD', { fontSize:'11px', fill:'#FFD700', fontFamily:'Arial' });
+
+    // Controls hint
+    this.add.text(W/2, H-50, 'Flechas: Mover  |  Espacio/↑: Saltar  |  Z: Atacar  |  Shift: Correr  |  P: Pausa', {
+      fontSize:'10px', fill:'#888', fontFamily:'Arial'
+    }).setOrigin(0.5);
+
+    // Keyboard input
+    const up   = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.UP);
+    const down = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.DOWN);
+    const enter= this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER);
+    const space= this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+    this.input.keyboard.on('keydown-UP',    () => { sel=(sel-1+menuCfg.length)%menuCfg.length; updateMenu(); });
+    this.input.keyboard.on('keydown-DOWN',  () => { sel=(sel+1)%menuCfg.length; updateMenu(); });
+    this.input.keyboard.on('keydown-ENTER', () => menuCfg[sel].action());
+    this.input.keyboard.on('keydown-SPACE', () => menuCfg[0].action());
+  }
+
+  showControls() {
+    const panel = this.add.rectangle(W/2, H/2, 500, 300, 0x000000, 0.92);
+    const lines = [
+      '─── CONTROLES ───',
+      '← → : Moverse',
+      '↑ / Espacio : Saltar',
+      '↑ doble : Doble salto',
+      'Shift + → : Correr',
+      'Z : Atacar / Motosierra',
+      'S : Usar power-up activo',
+      'P / Esc : Pausar',
+      '↓ : Agacharse',
+      '',
+      'Presiona cualquier tecla para volver',
+    ];
+    const txt = this.add.text(W/2, H/2, lines.join('\n'), {
+      fontSize:'15px', fill:'#FFD700', fontFamily:'Arial', align:'center',
+      lineSpacing:6
+    }).setOrigin(0.5).setDepth(10);
+
+    this.input.keyboard.once('keydown', () => { panel.destroy(); txt.destroy(); });
+  }
+}
+
+// ─────────────────────────────────────────────
+// HUD SCENE (overlay, always on top)
+// ─────────────────────────────────────────────
+class HUDScene extends Phaser.Scene {
+  constructor() { super({ key:'HUD', active:false }); }
+
+  create() {
+    // Lives
+    this.livesText = this.add.text(10, 8, '', { fontSize:'16px', fill:'#fff', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 });
+    // Score
+    this.scoreText = this.add.text(10, 28, '', { fontSize:'12px', fill:'#FFD700', fontFamily:'Arial' });
+    // Level name
+    this.levelText = this.add.text(W/2, 8, '', { fontSize:'13px', fill:'#fff', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(0.5,0);
+    // Coins
+    this.coinsText = this.add.text(W-10, 8, '', { fontSize:'16px', fill:'#FFD700', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(1,0);
+    // Fiscal bar label
+    this.add.text(W/2, 28, 'EQUILIBRIO FISCAL', { fontSize:'9px', fill:'#FFD700', fontFamily:'Arial' }).setOrigin(0.5,0);
+    // Fiscal bar
+    this.fiscalBg  = this.add.rectangle(W/2, 44, 180, 10, 0x333333).setOrigin(0.5,0.5);
+    this.fiscalBar = this.add.rectangle(W/2-90, 44, 180, 10, 0x00FF00).setOrigin(0,0.5);
+    // Active power-up
+    this.puText = this.add.text(10, 46, '', { fontSize:'11px', fill:'#00FFFF', fontFamily:'Arial' });
+    // Boss health (hidden by default)
+    this.bossHPBg  = this.add.rectangle(W/2, H-22, 400, 14, 0x440000).setOrigin(0.5).setVisible(false);
+    this.bossHPBar = this.add.rectangle(W/2-200, H-22, 400, 14, 0xFF2200).setOrigin(0,0.5).setVisible(false);
+    this.bossName  = this.add.text(W/2, H-36, '', { fontSize:'12px', fill:'#FF4444', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(0.5).setVisible(false);
+
+    // Listen for HUD updates from game scene
+    this.game.events.on('hud_update', data => {
+      const gs = window.gameState;
+      this.livesText.setText(`🦁 x${gs.lives}`);
+      this.scoreText.setText(`SCORE: ${gs.score}`);
+      this.levelText.setText(data.levelName || '');
+      this.coinsText.setText(`$ ${gs.coins}`);
+      const fw = Math.max(0, (gs.fiscal/100)*180);
+      this.fiscalBar.width = fw;
+      this.fiscalBar.fillColor = gs.fiscal>60 ? 0x00FF00 : gs.fiscal>30 ? 0xFFFF00 : 0xFF0000;
+      this.puText.setText(data.powerup ? `⚡ ${data.powerup}` : '');
+
+      if (data.bossHP !== null && data.bossHP !== undefined) {
+        this.bossHPBg.setVisible(true);
+        this.bossHPBar.setVisible(true);
+        this.bossName.setVisible(true);
+        this.bossName.setText(data.bossName||'');
+        this.bossHPBar.width = Math.max(0, (data.bossHP/data.bossMaxHP)*400);
+      } else {
+        this.bossHPBg.setVisible(false);
+        this.bossHPBar.setVisible(false);
+        this.bossName.setVisible(false);
+      }
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
+// ESPERT SHOP SCENE
+// ─────────────────────────────────────────────
+class ShopScene extends Phaser.Scene {
+  constructor() { super('Shop'); }
+
+  init(data) { this.nextLevel = data.nextLevel; }
+
+  create() {
+    const gs = window.gameState;
+
+    this.add.rectangle(W/2, H/2, W, H, 0x0a0a0a, 0.95);
+
+    // Espert sprite
+    const espert = this.add.image(W/2-180, H/2+20, 'ally_espert').setScale(0.6);
+    this.tweens.add({ targets:espert, y:espert.y-8, duration:800, yoyo:true, repeat:-1, ease:'Sine.easeInOut' });
+
+    // Title
+    this.add.text(W/2+40, 20, '🏪 LIBRE MERCADO SHOP', {
+      fontSize:'24px', fill:'#FFD700', fontFamily:'Arial Black',
+      stroke:'#000', strokeThickness:4
+    }).setOrigin(0.5,0);
+
+    // Money available
+    this.moneyText = this.add.text(W/2+40, 55, `Monedas: $${gs.coins}`, {
+      fontSize:'16px', fill:'#00FF00', fontFamily:'Arial'
+    }).setOrigin(0.5,0);
+
+    const items = [
+      { label:'🔧 Motosierra +',  price:50,  effect:'chainsaw',  desc:'Daño doble próximo nivel' },
+      { label:'📖 Libro Hayek',   price:75,  effect:'hayek',     desc:'Invencibilidad 15s' },
+      { label:'🦁 Peluca León',   price:40,  effect:'mane',      desc:'Velocidad doble 10s' },
+      { label:'💰 Dolarito',      price:60,  effect:'shield',    desc:'Absorbe 3 golpes' },
+      { label:'❤️ Vida extra',    price:100, effect:'life',      desc:'+1 Vida' },
+    ];
+
+    const quotes = [
+      '"¡Excelente inversión!"',
+      '"El mercado siempre tiene razón"',
+      '"Comprá antes que se infle!"',
+      '"Sin subsidios, puro libre mercado"',
+      '"Esto no lo financia el Estado"',
+    ];
+
+    this.selectedPU = null;
+
+    items.forEach((item, i) => {
+      const btnX = W/2+40, btnY = 100 + i*52;
+      const canAfford = gs.coins >= item.price;
+
+      const btn = this.add.rectangle(btnX, btnY, 320, 44, canAfford ? 0x1a3a1a : 0x222222)
+        .setInteractive().setOrigin(0.5);
+
+      this.add.text(btnX-140, btnY, item.label, {
+        fontSize:'15px', fill: canAfford ? '#FFD700':'#666', fontFamily:'Arial Black'
+      }).setOrigin(0,0.5);
+
+      this.add.text(btnX+100, btnY-8, `$${item.price}`, {
+        fontSize:'14px', fill: canAfford ? '#00FF00':'#444', fontFamily:'Arial'
+      }).setOrigin(0.5,0.5);
+
+      this.add.text(btnX+100, btnY+8, item.desc, {
+        fontSize:'10px', fill:'#888', fontFamily:'Arial'
+      }).setOrigin(0.5,0.5);
+
+      if (canAfford) {
+        btn.on('pointerover', () => btn.setFillStyle(0x2a5a2a));
+        btn.on('pointerout',  () => btn.setFillStyle(0x1a3a1a));
+        btn.on('pointerdown', () => {
+          gs.coins -= item.price;
+          this.moneyText.setText(`Monedas: $${gs.coins}`);
+          this.selectedPU = item.effect;
+          btn.setFillStyle(0x005500);
+
+          const q = quotes[Math.floor(Math.random()*quotes.length)];
+          const qt = this.add.text(W/2+40, H-40, q, {
+            fontSize:'13px', fill:'#fff', fontFamily:'Arial', fontStyle:'italic'
+          }).setOrigin(0.5);
+          this.time.delayedCall(2000, () => qt.destroy());
+        });
+      }
+    });
+
+    // Continue button
+    const contBtn = this.add.text(W/2+40, H-15, '▶ CONTINUAR AL SIGUIENTE NIVEL', {
+      fontSize:'16px', fill:'#FFD700', fontFamily:'Arial Black',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setInteractive();
+
+    contBtn.on('pointerover', () => contBtn.setFill('#FFA500'));
+    contBtn.on('pointerout',  () => contBtn.setFill('#FFD700'));
+    contBtn.on('pointerdown', () => this.continueGame());
+
+    this.input.keyboard.on('keydown-ENTER', () => this.continueGame());
+    this.input.keyboard.on('keydown-E',     () => this.continueGame());
+  }
+
+  continueGame() {
+    window.gameState.pendingPowerup = this.selectedPU;
+    this.scene.stop('HUD');
+    this.scene.start('GameScene');
+  }
+}
+
+// ─────────────────────────────────────────────
+// MAIN GAME SCENE
+// ─────────────────────────────────────────────
+class GameScene extends Phaser.Scene {
+  constructor() { super('GameScene'); }
+
+  create() {
+    const gs = window.gameState;
+    const lvlCfg = LEVELS[gs.currentLevel] || LEVELS[0];
+
+    // ── State ──
+    this.lvlCfg     = lvlCfg;
+    this.isAttacking= false;
+    this.isInvincible=false;
+    this.chainsawOn = false;
+    this.activePU   = null;
+    this.combo      = 0;
+    this.bossSpawned= false;
+    this.allyGiven  = false;
+    this.bossHP     = lvlCfg.bossHP;
+    this.bossMaxHP  = lvlCfg.bossHP;
+    this.boss       = null;
+    this.levelDone  = false;
+    this.isPaused   = false;
+    this.pauseOverlay=null;
+
+    // Apply pending powerup from shop
+    if (gs.pendingPowerup) {
+      this.activatePowerup(gs.pendingPowerup);
+      gs.pendingPowerup = null;
+    }
+
+    // ── World ──
+    const WORLD_W = 5000;
+    this.physics.world.setBounds(0, 0, WORLD_W, H);
+    this.physics.world.gravity.y = GRAVITY;
+
+    // ── Background (tiled/stretched) ──
+    const bg = this.add.image(0, 0, lvlCfg.bg).setOrigin(0,0);
+    bg.setDisplaySize(WORLD_W, H);
+
+    // ── Platforms ──
+    this.platforms = this.physics.add.staticGroup();
+    this.buildPlatforms(WORLD_W);
+
+    // ── Player ──
+    this.player = this.physics.add.sprite(120, H-120, 'milei');
+    this.player.setScale(1.6);
+    this.player.setCollideWorldBounds(true);
+    this.player.setMaxVelocityX(RUN_SPEED);
+    this.player.setDragX(DRAG);
+    this.player.setDepth(10);
+    this.player.play('milei_idle');
+    this.player.djUsed = false;
+    this.player.facing = 1;
+    this.player.isDead = false;
+
+    this.cameras.main.setBounds(0,0,WORLD_W,H);
+    this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
+    this.cameras.main.setDeadzone(120, 60);
+
+    // ── Enemies ──
+    this.enemies = this.physics.add.group();
+    this.spawnEnemies(WORLD_W);
+
+    // ── Coins ──
+    this.coins = this.physics.add.group();
+    this.spawnCoins(WORLD_W);
+
+    // ── Power-ups ──
+    this.powerups = this.physics.add.group();
+    this.spawnPowerups(WORLD_W);
+
+    // ── Projectiles ──
+    this.projectiles = this.physics.add.group();
+
+    // ── Colliders ──
+    this.physics.add.collider(this.player, this.platforms);
+    this.physics.add.collider(this.enemies, this.platforms);
+    this.physics.add.collider(this.coins,   this.platforms);
+    this.physics.add.collider(this.powerups,this.platforms);
+    this.physics.add.collider(this.projectiles, this.platforms, (p) => p.destroy());
+
+    this.physics.add.overlap(this.player, this.enemies,   this.onPlayerEnemy, null, this);
+    this.physics.add.overlap(this.player, this.coins,     this.onCoin,        null, this);
+    this.physics.add.overlap(this.player, this.powerups,  this.onPowerup,     null, this);
+    this.physics.add.overlap(this.player, this.projectiles, (pl, pj) => {
+      pj.destroy();
+      if (!this.isInvincible) this.takeDamage();
+    });
+
+    // ── Boss zone trigger ──
+    this.bossZone = this.add.zone(WORLD_W-700, H/2, 40, H);
+    this.physics.world.enable(this.bossZone);
+    this.bossZone.body.allowGravity = false;
+    this.bossZone.body.setImmovable(true);
+    this.physics.add.overlap(this.player, this.bossZone, () => {
+      if (!this.bossSpawned) { this.bossSpawned=true; this.launchBossIntro(); }
+    });
+
+    // ── Ally zone trigger (mid-level) ──
+    this.allyZone = this.add.zone(WORLD_W/2, H/2, 40, H);
+    this.physics.world.enable(this.allyZone);
+    this.allyZone.body.allowGravity = false;
+    this.physics.add.overlap(this.player, this.allyZone, () => {
+      if (!this.allyGiven) { this.allyGiven=true; this.spawnAlly(); }
+    });
+
+    // ── Controls ──
+    this.cursors = this.input.keyboard.createCursorKeys();
+    this.keyZ     = this.input.keyboard.addKey('Z');
+    this.keyShift = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SHIFT);
+    this.keyS     = this.input.keyboard.addKey('S');
+    this.input.keyboard.on('keydown-UP',    () => this.doJump());
+    this.input.keyboard.on('keydown-SPACE', () => this.doJump());
+    this.input.keyboard.on('keydown-Z',     () => this.doAttack());
+    this.input.keyboard.on('keydown-P',     () => this.togglePause());
+    this.input.keyboard.on('keydown-ESC',   () => this.togglePause());
+
+    // ── HUD ──
+    this.scene.launch('HUD');
+    this.hudEmit();
+
+    // ── Audio ──
+    this.snd_zurdos  = this.sound.add('voz_zurdos',   { volume:0.9 });
+    this.snd_viva    = this.sound.add('voz_viva',     { volume:0.9 });
+    this.snd_completo= this.sound.add('voz_completo', { volume:0.9 });
+
+    // ── Fiscal timer (decreases over time) ──
+    this.time.addEvent({ delay:4000, callback:() => {
+      if (!this.levelDone && !this.isPaused) {
+        gs.fiscal = Math.max(0, gs.fiscal-3);
+        if (gs.fiscal<=0) this.takeDamage();
+      }
+    }, loop:true });
+
+    // ── Macri Gato random appearance ──
+    this.time.delayedCall(25000, () => this.spawnMacriGato());
+
+    // Level intro banner
+    this.showBanner(`MUNDO ${gs.currentLevel+1}\n${lvlCfg.name}`, '#FFD700', 2500);
+  }
+
+  // ─── Platform generation ───
+  buildPlatforms(ww) {
+    // Ground
+    this.addPlat(ww/2, H-16, ww, 32, 0x5C3A1E);
+
+    // Platforms - varied layout
+    const layouts = [
+      {x:350,y:300,w:140}, {x:600,y:230,w:120}, {x:850,y:310,w:110},
+      {x:1100,y:250,w:130},{x:1350,y:330,w:100},{x:1600,y:200,w:140},
+      {x:1850,y:280,w:120},{x:2100,y:320,w:110},{x:2350,y:240,w:130},
+      {x:2600,y:300,w:100},{x:2850,y:210,w:140},{x:3100,y:350,w:120},
+      {x:3350,y:270,w:110},{x:3600,y:230,w:130},{x:3850,y:310,w:100},
+      {x:4100,y:250,w:140},{x:4350,y:200,w:120},{x:4600,y:320,w:110},
+    ];
+    layouts.forEach(p => this.addPlat(p.x, p.y, p.w, 14, 0x8B5E3C));
+  }
+
+  addPlat(x,y,w,h,color) {
+    const g = this.add.graphics();
+    g.fillStyle(color, 1);
+    g.fillRect(x-w/2, y-h/2, w, h);
+    // Lighter top edge
+    g.fillStyle(0xC68642,1);
+    g.fillRect(x-w/2, y-h/2, w, 4);
+
+    const body = this.add.rectangle(x, y, w, h, 0, 0);
+    this.physics.add.existing(body, true);
+    this.platforms.add(body);
+  }
+
+  spawnEnemies(ww) {
+    // Regular cucarachas K
+    const cuPos = [400,750,1050,1400,1750,2100,2450,2800,3150,3500,3850,4200];
+    cuPos.forEach(x => this.addEnemy('cucaracha_k', x, H-80, 1, 'cuca_walk', 60));
+
+    // Armored cucarachas (every 3rd)
+    [1200,2400,3600].forEach(x => this.addEnemy('cucaracha_k_armada', x, H-80, 2, 'cuca_arm_walk', 45));
+
+    // Sindicalistas
+    [1800,3200,4000].forEach(x => this.addEnemy('sindicalista', x, H-90, 3, 'sind_walk', 30));
+  }
+
+  addEnemy(key, x, y, hp, anim, spd) {
+    const e = this.physics.add.sprite(x, y, key);
+    e.setScale(key==='sindicalista' ? 1.4 : 1.5);
+    e.play(anim);
+    e.setCollideWorldBounds(true);
+    e.setVelocityX(-spd);
+    e.hp = hp; e.maxHp = hp;
+    e.speed = spd; e.enemyType = key; e.isDead = false;
+    e.setDepth(5);
+    this.enemies.add(e);
+  }
+
+  spawnCoins(ww) {
+    for (let x=300; x<ww-300; x+=180) {
+      if (Math.random()>0.35) {
+        const c = this.physics.add.sprite(x, H-140-Math.random()*80, 'powerups');
+        c.setFrame(0); c.setScale(1.1); c.setGravityY(-GRAVITY+100);
+        this.coins.add(c);
+      }
+    }
+  }
+
+  spawnPowerups(ww) {
+    const types = ['dollar','chainsaw','shield','hayek','mane'];
+    const positions = [600,1400,2200,3000,3800];
+    positions.forEach((x,i) => {
+      const pu = this.physics.add.sprite(x, H-200, 'powerups');
+      pu.puType = types[i%types.length];
+      pu.setScale(1.6); pu.setBounce(0.3);
+      pu.play(`pu_${pu.puType}`);
+      this.powerups.add(pu);
+    });
+  }
+
+  // ─── Player actions ───
+  doJump() {
+    if (this.isPaused || this.player.isDead) return;
+    const onGnd = this.player.body.blocked.down;
+    if (onGnd) {
+      this.player.setVelocityY(JUMP_VEL);
+      this.player.djUsed = false;
+    } else if (!this.player.djUsed) {
+      this.player.setVelocityY(DJUMP_VEL);
+      this.player.djUsed = true;
+      this.cameras.main.shake(80, 0.004);
+      // Visual particle burst for double jump
+      this.showFloatText(this.player.x, this.player.y+20, '✨', '#FFD700', 400);
+    }
+  }
+
+  doAttack() {
+    if (this.isPaused || this.isAttacking || this.player.isDead) return;
+    this.isAttacking = true;
+    this.player.play('milei_attack', true);
+
+    if (this.chainsawOn) {
+      if (!this.snd_zurdos.isPlaying) this.snd_zurdos.play();
+    }
+
+    const dir = this.player.facing;
+    const hx = this.player.x + dir*70, hy = this.player.y;
+    const hitRect = new Phaser.Geom.Rectangle(hx-40, hy-35, 80, 70);
+
+    // Damage enemies in range
+    this.enemies.getChildren().forEach(e => {
+      if (e.active && !e.isDead && Phaser.Geom.Intersects.RectangleToRectangle(hitRect, e.getBounds()))
+        this.hitEnemy(e);
+    });
+
+    // Damage boss
+    if (this.boss && this.boss.active && !this.boss.isDead &&
+        Phaser.Geom.Intersects.RectangleToRectangle(hitRect, this.boss.getBounds()))
+      this.hitBoss();
+
+    // Attack flash
+    const flash = this.add.rectangle(hx, hy, 80, 60, 0xFFFF00, 0.25).setDepth(20);
+    this.time.delayedCall(80, () => flash.destroy());
+
+    this.time.delayedCall(350, () => {
+      this.isAttacking = false;
+      if (!this.player.isDead) this.player.play('milei_idle', true);
+    });
+  }
+
+  hitEnemy(e) {
+    const dmg = this.chainsawOn ? 2 : 1;
+    e.hp -= dmg;
+    this.cameras.main.shake(100, 0.006);
+    this.tweens.add({ targets:e, tint:0xFF0000, duration:80, yoyo:true });
+    this.showFloatText(e.x, e.y-20, `-${dmg}`, '#FF4444');
+
+    if (e.hp <= 0) {
+      this.killEnemy(e);
+    } else if (e.enemyType==='cucaracha_k_armada') {
+      e.play('cuca_arm_hit', true);
+      this.time.delayedCall(400, () => { if(e.active) e.play('cuca_arm_walk',true); });
+    }
+  }
+
+  killEnemy(e) {
+    if (e.isDead) return;
+    e.isDead = true;
+    e.setVelocity(0, -120);
+    e.setDepth(3);
+
+    const deathAnim = {
+      'cucaracha_k':'cuca_death',
+      'cucaracha_k_armada':'cuca_arm_death',
+      'sindicalista':'sind_death'
+    }[e.enemyType] || 'cuca_death';
+    e.play(deathAnim, true);
+
+    window.gameState.coins += 5;
+    window.gameState.score += 100;
+    window.gameState.fiscal = Math.min(100, window.gameState.fiscal+3);
+    this.showFloatText(e.x, e.y-20, '+$5', '#FFD700');
+
+    this.combo++;
+    if (this.combo>=5) {
+      this.showBanner('¡COMBO x5!\n¡AFUERA!', '#FFD700', 1500);
+      if (!this.snd_viva.isPlaying) this.snd_viva.play();
+      this.combo = 0;
+    }
+
+    this.time.delayedCall(700, () => { if(e.active) e.destroy(); });
+    this.hudEmit();
+  }
+
+  onPlayerEnemy(player, e) {
+    if (this.isInvincible || player.isDead || e.isDead) return;
+    // Stomp detection
+    if (player.body.velocity.y>50 && player.y < e.y-20) {
+      this.hitEnemy(e);
+      player.setVelocityY(JUMP_VEL*0.45);
+    } else {
+      this.takeDamage();
+    }
+  }
+
+  onCoin(player, coin) {
+    coin.destroy();
+    window.gameState.coins++;
+    window.gameState.score += 10;
+    window.gameState.fiscal = Math.min(100, window.gameState.fiscal+1);
+    this.showFloatText(coin.x, coin.y, '+$1', '#FFD700', 500);
+    this.hudEmit();
+  }
+
+  onPowerup(player, pu) {
+    const type = pu.puType;
+    pu.destroy();
+    this.cameras.main.flash(250, 255, 215, 0);
+    this.activatePowerup(type);
+  }
+
+  activatePowerup(type) {
+    const labels = { dollar:'Motosierra', chainsaw:'Motosierra MAX', shield:'Escudo $', hayek:'Modo Hayek', mane:'Peluca León', life:'Vida Extra', chainsaw_shop:'Motosierra+' };
+    this.activePU = labels[type] || type;
+
+    switch(type) {
+      case 'dollar':
+      case 'chainsaw':
+      case 'chainsaw_shop':
+        this.chainsawOn = true;
+        if (!this.snd_zurdos.isPlaying) this.snd_zurdos.play();
+        this.showBanner('¡SIGNO $!\n¡MOTOSIERRA ACTIVADA!', '#FFD700', 2000);
+        this.time.delayedCall(type==='chainsaw'?20000:15000, () => { this.chainsawOn=false; if(this.activePU?.includes('Moto')) this.activePU=null; this.hudEmit(); });
+        break;
+      case 'shield':
+        this.isInvincible=true;
+        this.showBanner('¡DOLARITO ESCUDO!\n¡INVENCIBLE!', '#00FFFF', 2000);
+        this.time.delayedCall(15000, () => { this.isInvincible=false; this.activePU=null; this.hudEmit(); });
+        break;
+      case 'hayek':
+        this.isInvincible=true;
+        this.showBanner('¡LIBRO DE HAYEK!\n¡LIBERTAD TOTAL!', '#FFFFFF', 2000);
+        this.time.delayedCall(10000, () => { this.isInvincible=false; this.activePU=null; this.hudEmit(); });
+        break;
+      case 'mane':
+        this.showBanner('¡PELUCA DE LEÓN!\n¡VELOCIDAD MAX!', '#DAA520', 2000);
+        this.player.setMaxVelocityX(RUN_SPEED*1.8);
+        this.time.delayedCall(10000, () => { this.player.setMaxVelocityX(RUN_SPEED); this.activePU=null; this.hudEmit(); });
+        break;
+      case 'life':
+        window.gameState.lives++;
+        this.showBanner('¡VIDA EXTRA!', '#FF69B4', 1500);
+        break;
+    }
+    this.hudEmit();
+  }
+
+  // ─── Ally system ───
+  spawnAlly() {
+    const cfg = this.lvlCfg;
+    const ax = this.player.x + 400;
+    const ally = this.add.image(ax, H-150, cfg.ally).setScale(0.7).setAlpha(0).setDepth(8);
+
+    this.tweens.add({ targets:ally, alpha:1, duration:800 });
+    this.tweens.add({ targets:ally, y:ally.y-12, duration:900, yoyo:true, repeat:-1, ease:'Sine.easeInOut', delay:800 });
+
+    const label = this.add.text(ax, ally.y-110, `✨ ${cfg.allyName} ✨\n¡Tócalo para obtener un poder!`, {
+      fontSize:'12px', fill:'#FFD700', fontFamily:'Arial', align:'center',
+      backgroundColor:'#00000099', padding:{x:6,y:3}
+    }).setOrigin(0.5).setDepth(9);
+
+    this.physics.world.enable(ally);
+    ally.body.allowGravity = false;
+
+    const ov = this.physics.add.overlap(this.player, ally, () => {
+      this.physics.world.removeCollider(ov);
+      label.destroy();
+      this.cameras.main.flash(400,255,215,0);
+
+      // Give level-specific power
+      const allyPowers = {
+        'ally_alberdi':'shield', 'ally_cavallo':'dollar', 'ally_sarmiento':'hayek',
+        'ally_nisman':'chainsaw','ally_adam_smith':'dollar','ally_san_martin':'chainsaw',
+        'ally_friedman':'shield','ally_hayek':'chainsaw'
+      };
+      const power = allyPowers[cfg.ally] || 'shield';
+      this.activatePowerup(power);
+
+      const allyMsg = {
+        'ally_alberdi':'"La Constitución es el escudo del pueblo"',
+        'ally_nisman':'"La verdad siempre sale a la luz"',
+        'ally_cavallo':'"Un peso, un dólar"',
+        'ally_sarmiento':'"¡Educar al soberano!"',
+        'ally_adam_smith':'"The invisible hand of the market"',
+        'ally_san_martin':'"Seamos libres, lo demás no importa nada"',
+        'ally_friedman':'"There is no free lunch"',
+        'ally_hayek':'"The road to serfdom"',
+      };
+      this.showBanner((allyMsg[cfg.ally]||'¡Poder activado!'), '#FFD700', 2500);
+
+      this.tweens.add({ targets:[ally,label], alpha:0, duration:600, onComplete:()=>{ ally.destroy(); } });
+    }, null, this);
+
+    this.time.delayedCall(9000, () => {
+      if (ally.active) {
+        this.tweens.add({ targets:[ally,label], alpha:0, duration:800, onComplete:()=>{ ally.destroy(); label.destroy?.(); } });
+      }
+    });
+  }
+
+  // ─── Boss ───
+  launchBossIntro() {
+    const cfg = this.lvlCfg;
+    // Camera shake + darkness
+    this.cameras.main.shake(600, 0.02);
+    this.add.rectangle(W/2, H/2, W, H, 0x000000, 0.5).setScrollFactor(0).setDepth(50);
+
+    this.showBanner(`⚠ BOSS ⚠\n${cfg.bossName}`, '#FF0000', 3000);
+
+    this.time.delayedCall(2500, () => {
+      const bx = this.cameras.main.scrollX + W - 60;
+      const bkey = cfg.boss;
+
+      this.boss = this.physics.add.sprite(bx, H-130, bkey);
+      this.boss.setScale(bkey==='boss_fmi' ? 1.8 : 2.0);
+      this.boss.setCollideWorldBounds(true);
+      this.boss.setDepth(8);
+      this.boss.isDead = false;
+      this.boss.hp = this.bossHP;
+      this.boss.maxHp = this.bossMaxHP;
+
+      const idleKey = bkey==='boss_fmi' ? 'fmi_idle' : `${bkey}_idle`;
+      this.boss.play(idleKey, true);
+
+      this.physics.add.collider(this.boss, this.platforms);
+
+      // Boss collision with player
+      this.physics.add.overlap(this.player, this.boss, () => {
+        if (!this.isInvincible && !this.boss.isDead && !this.player.isDead)
+          this.takeDamage();
+      }, null, this);
+
+      // Boss AI
+      this.bossAITimer = this.time.addEvent({
+        delay: 1800,
+        callback: () => this.runBossAI(),
+        loop: true
+      });
+
+      this.hudEmit();
+    });
+  }
+
+  runBossAI() {
+    if (!this.boss || !this.boss.active || this.boss.isDead || this.player.isDead) return;
+
+    const dx = this.player.x - this.boss.x;
+    const dy = this.player.y - this.boss.y;
+    const onGnd = this.boss.body.blocked.down;
+    const bkey = this.lvlCfg.boss;
+
+    // Move toward player
+    const spd = 70 + window.gameState.currentLevel*8;
+    this.boss.setVelocityX(dx > 0 ? spd : -spd);
+    this.boss.setFlipX(dx < 0);
+
+    // Random attack pattern
+    const roll = Math.random();
+
+    if (roll < 0.3) {
+      // Jump attack
+      if (onGnd) this.boss.setVelocityY(JUMP_VEL*0.75);
+    } else if (roll < 0.6) {
+      // Projectile attack
+      const atkKey = bkey==='boss_fmi' ? 'fmi_atk1' : `${bkey}_atk`;
+      this.boss.play(atkKey, true);
+      this.time.delayedCall(300, () => {
+        if (this.boss && this.boss.active)
+          this.spawnProjectile(this.boss.x + (dx>0?40:-40), this.boss.y, dx>0?220:-220, -80);
+      });
+    } else if (roll < 0.8 && Math.abs(dx)<350) {
+      // Charge
+      this.boss.setVelocityX(dx>0 ? spd*2.5 : -spd*2.5);
+    }
+
+    // Boss-specific specials
+    if (Math.random() < 0.15) {
+      this.bossSpecial();
+    }
+
+    // Idle anim fallback
+    this.time.delayedCall(600, () => {
+      if (this.boss && this.boss.active && !this.boss.isDead) {
+        const idleKey = bkey==='boss_fmi' ? 'fmi_idle' : `${bkey}_idle`;
+        this.boss.play(idleKey, true);
+      }
+    });
+  }
+
+  bossSpecial() {
+    const bkey = this.lvlCfg.boss;
+    // Spawn enemy reinforcements
+    const ex = this.boss.x + Phaser.Math.Between(-200,200);
+    this.addEnemy('cucaracha_k', ex, H-80, 1, 'cuca_walk', 70);
+    this.showFloatText(this.boss.x, this.boss.y-60, '¡REFUERZOS!', '#FF0000');
+  }
+
+  spawnProjectile(x, y, vx, vy) {
+    const proj = this.add.rectangle(x, y, 22, 14, 0xFF2200).setDepth(12);
+    this.physics.add.existing(proj);
+    proj.body.setVelocity(vx, vy);
+    proj.body.setAllowGravity(true);
+    this.projectiles.add(proj);
+    this.time.delayedCall(3500, () => { if(proj.active) proj.destroy(); });
+  }
+
+  hitBoss() {
+    if (!this.boss || this.boss.isDead) return;
+    const dmg = this.chainsawOn ? 18 : 10;
+    this.boss.hp -= dmg;
+    this.bossHP = this.boss.hp;
+    this.cameras.main.shake(180, 0.012);
+    this.tweens.add({ targets:this.boss, tint:0xFF0000, duration:120, yoyo:true });
+    this.showFloatText(this.boss.x, this.boss.y-40, `-${dmg}`, '#FF0000');
+
+    // Hit animation
+    const hitKey = this.lvlCfg.boss==='boss_fmi' ? 'fmi_hit' : null;
+    if (hitKey) this.boss.play(hitKey, true);
+
+    window.gameState.score += 50;
+
+    if (this.boss.hp <= 0) this.defeatBoss();
+    this.hudEmit();
+  }
+
+  defeatBoss() {
+    if (this.boss.isDead) return;
+    this.boss.isDead = true;
+    if (this.bossAITimer) this.bossAITimer.remove();
+
+    const deathKey = this.lvlCfg.boss==='boss_fmi' ? 'fmi_death' : `${this.lvlCfg.boss}_death`;
+    this.boss.play(deathKey, true);
+    this.cameras.main.shake(800, 0.025);
+
+    // Death quotes
+    const quotes = {
+      del_cano:   '"El pueblo unido jamás será vencido!"',
+      massa:      '"Yo siempre estuve en contra"',
+      kicillof:   '"La culpa es de Milei"',
+      cristina:   '"¡Me persiguen!"',
+      larreta:    '"Esto es lo que siempre quise"',
+      villarruel: '"Sirvo a la patria, no a las personas"',
+      moreno:     '"¡TE VOY A ROMPER!"',
+      boss_fmi:   '"¡VIVA LA CASTA!"',
+    };
+    const q = quotes[this.lvlCfg.boss] || '"¡Derrotado!"';
+    this.showBanner(q, '#FF6600', 3000);
+
+    this.time.delayedCall(3500, () => {
+      this.levelDone = true;
+      this.bossHP = 0;
+
+      const gs = window.gameState;
+      gs.score += 1000;
+      gs.fiscal = Math.min(100, gs.fiscal+20);
+      gs.coins += 20;
+
+      if (gs.currentLevel >= LEVELS.length-1) {
+        // Final victory!
+        this.showBanner('¡JUEGO COMPLETADO!\n¡VIVA LA LIBERTAD CARAJO!', '#FFD700', 5000);
+        this.snd_completo.play();
+        this.time.delayedCall(6000, () => {
+          this.scene.stop('HUD');
+          this.scene.start('Title');
+        });
+      } else {
+        this.showBanner('¡NIVEL COMPLETADO!\n¡LIBERTAD!', '#FFD700', 2500);
+        if (!this.snd_viva.isPlaying) this.snd_viva.play();
+        this.time.delayedCall(3000, () => {
+          gs.currentLevel++;
+          this.scene.stop('HUD');
+          this.scene.start('Shop', { nextLevel: gs.currentLevel });
+        });
+      }
+    });
+  }
+
+  // ─── Damage ───
+  takeDamage() {
+    if (this.isInvincible || this.player.isDead) return;
+    const gs = window.gameState;
+    gs.lives--;
+    this.isInvincible = true;
+    this.player.play('milei_hit', true);
+    this.cameras.main.shake(250, 0.018);
+
+    this.tweens.add({
+      targets: this.player, alpha:0.3, duration:80,
+      yoyo:true, repeat:14,
+      onComplete: () => {
+        this.isInvincible = false;
+        this.player.alpha = 1;
+        if (!this.player.isDead) this.player.play('milei_idle', true);
+      }
+    });
+
+    if (gs.lives <= 0) this.gameOver();
+    this.hudEmit();
+  }
+
+  gameOver() {
+    if (this.player.isDead) return;
+    this.player.isDead = true;
+    this.player.play('milei_death', true);
+    this.player.setVelocity(0, -280);
+    this.showBanner('GAME OVER\n"El camino es duro\npero vale la pena"', '#FF0000', 4000);
+
+    this.time.delayedCall(5000, () => {
+      this.scene.stop('HUD');
+      window.gameState = { lives:3, coins:0, fiscal:50, currentLevel:0, score:0 };
+      this.scene.start('Title');
+    });
+  }
+
+  // ─── Macri Gato ───
+  spawnMacriGato() {
+    const mx = this.player.x + 500;
+    const macri = this.add.sprite(mx, H-80, 'macri_gato').setScale(1.6).setDepth(9);
+    macri.play('macri_idle');
+    const miauTxt = this.add.text(mx, H-140, '¡MIAU!', { fontSize:'16px', fill:'#FFD700', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(0.5).setDepth(10);
+
+    this.physics.world.enable(macri);
+    macri.body.allowGravity = false;
+
+    const ov = this.physics.add.overlap(this.player, macri, () => {
+      this.physics.world.removeCollider(ov);
+      miauTxt.destroy();
+
+      const isGood = Math.random()>0.45;
+      if (isGood) {
+        macri.play('macri_good', true);
+        window.gameState.coins += 20;
+        window.gameState.fiscal = Math.min(100, window.gameState.fiscal+20);
+        this.isInvincible = true;
+        this.time.delayedCall(12000, () => this.isInvincible=false);
+        this.showBanner('¡MACRI DA PREMIO!\n+20 monedas + escudo', '#00FF00', 2000);
+      } else {
+        macri.play('macri_bad', true);
+        window.gameState.coins = Math.max(0, window.gameState.coins-10);
+        window.gameState.fiscal = Math.max(0, window.gameState.fiscal-15);
+        this.showBanner('¡SORPRESA DE MACRI!\n-10 monedas\n"No sabíamos lo que había"', '#FF6600', 2000);
+      }
+
+      this.time.delayedCall(1500, () => {
+        macri.play('macri_exit', true);
+        this.tweens.add({ targets:macri, x:macri.x+300, alpha:0, duration:1000, onComplete:()=>macri.destroy() });
+      });
+      this.hudEmit();
+    }, null, this);
+
+    this.time.delayedCall(9000, () => {
+      if (macri.active) {
+        miauTxt.destroy();
+        this.tweens.add({ targets:macri, alpha:0, duration:800, onComplete:()=>macri.destroy() });
+      }
+    });
+  }
+
+  // ─── Pause ───
+  togglePause() {
+    this.isPaused = !this.isPaused;
+    if (this.isPaused) {
+      this.physics.pause();
+      const sx = this.cameras.main.scrollX;
+      this.pauseOverlay = this.add.container(sx, 0).setDepth(100);
+      const bg = this.add.rectangle(W/2, H/2, 380, 200, 0x000000, 0.88);
+      const t1 = this.add.text(W/2, H/2-50, '⏸ JUEGO PAUSADO', { fontSize:'26px', fill:'#FFD700', fontFamily:'Arial Black', stroke:'#000', strokeThickness:4 }).setOrigin(0.5);
+      const t2 = this.add.text(W/2, H/2,    'P / ESC → Continuar', { fontSize:'16px', fill:'#fff', fontFamily:'Arial' }).setOrigin(0.5);
+      const t3 = this.add.text(W/2, H/2+30, 'Z → Atacar  |  Shift → Correr', { fontSize:'13px', fill:'#aaa', fontFamily:'Arial' }).setOrigin(0.5);
+      const t4 = this.add.text(W/2, H/2+55, `Vidas: ${window.gameState.lives}  |  Monedas: $${window.gameState.coins}  |  Score: ${window.gameState.score}`, { fontSize:'13px', fill:'#FFD700', fontFamily:'Arial' }).setOrigin(0.5);
+      this.pauseOverlay.add([bg,t1,t2,t3,t4]);
+    } else {
+      this.physics.resume();
+      if (this.pauseOverlay) { this.pauseOverlay.destroy(); this.pauseOverlay=null; }
+    }
+  }
+
+  // ─── HUD emitter ───
+  hudEmit() {
+    const gs = window.gameState;
+    this.game.events.emit('hud_update', {
+      levelName: `MUNDO ${gs.currentLevel+1} - ${this.lvlCfg.name}`,
+      powerup:   this.activePU,
+      bossHP:    this.boss && !this.boss.isDead ? this.bossHP : null,
+      bossMaxHP: this.bossMaxHP,
+      bossName:  this.lvlCfg.bossName,
+    });
+  }
+
+  // ─── Helpers ───
+  showBanner(text, color='#FFD700', dur=2000) {
+    const sx = this.cameras.main.scrollX;
+    const bg = this.add.rectangle(W/2+sx, H/2, 480, 90, 0x000000, 0.85).setDepth(60);
+    const t = this.add.text(W/2+sx, H/2, text, {
+      fontSize:'22px', fill:color, fontFamily:'Arial Black',
+      stroke:'#000', strokeThickness:5, align:'center'
+    }).setOrigin(0.5).setDepth(61);
+
+    this.tweens.add({
+      targets:[bg,t], alpha:0, duration:dur,
+      onComplete: () => { bg.destroy(); t.destroy(); }
+    });
+  }
+
+  showFloatText(x, y, text, color, dur=700) {
+    const t = this.add.text(x, y, text, {
+      fontSize:'15px', fill:color, fontFamily:'Arial Black',
+      stroke:'#000', strokeThickness:3
+    }).setOrigin(0.5).setDepth(55);
+    this.tweens.add({ targets:t, y:y-50, alpha:0, duration:dur, onComplete:()=>t.destroy() });
+  }
+
+  // ─── Main update loop ───
+  update() {
+    if (this.isPaused || !this.player || this.player.isDead) return;
+
+    const onGnd    = this.player.body.blocked.down;
+    const running  = this.keyShift.isDown;
+    const maxSpd   = running ? RUN_SPEED : WALK_SPEED;
+    const vel      = this.player.body.velocity;
+    const dt       = this.game.loop.delta / 1000; // seconds
+
+    // ─ Horizontal movement ─
+    if (this.cursors.left.isDown) {
+      this.player.facing = -1;
+      this.player.setFlipX(true);
+      vel.x = Math.max(vel.x - ACCEL*dt, -maxSpd);
+    } else if (this.cursors.right.isDown) {
+      this.player.facing = 1;
+      this.player.setFlipX(false);
+      vel.x = Math.min(vel.x + ACCEL*dt, maxSpd);
+    } else {
+      // Smooth deceleration (drag)
+      if (Math.abs(vel.x) < 8) vel.x = 0;
+      else vel.x -= Math.sign(vel.x) * DRAG * dt;
+    }
+
+    // ─ Duck ─
+    if (this.cursors.down.isDown && onGnd) {
+      this.player.setScale(1.6, 0.85);
+    } else {
+      this.player.setScale(1.6);
+    }
+
+    // ─ Animations ─
+    if (!this.isAttacking) {
+      if (!onGnd)                        this.player.play('milei_jump', true);
+      else if (Math.abs(vel.x)>8)       this.player.play('milei_walk', true);
+      else                               this.player.play('milei_idle', true);
+    }
+
+    // ─ Reset double jump when landing ─
+    if (onGnd) this.player.djUsed = false;
+
+    // ─ Enemy AI ─
+    this.enemies.getChildren().forEach(e => {
+      if (!e.active || e.isDead) return;
+      const ex = e.x - this.player.x;
+      const es = e.speed || 60;
+
+      if (Math.abs(ex) < 500) {
+        // Chase player
+        e.setVelocityX(ex>0 ? -es : es);
+        e.setFlipX(ex>0);
+      } else {
+        // Patrol
+        if (e.body.blocked.right || e.body.velocity.x===0) e._dir = -1;
+        if (e.body.blocked.left)  e._dir = 1;
+        if (!e._dir) e._dir = -1;
+        e.setVelocityX(e._dir * es * 0.6);
+        e.setFlipX(e._dir < 0);
+      }
+
+      // Jump over obstacles
+      if (e.body.blocked.right || e.body.blocked.left) {
+        if (e.body.blocked.down) e.setVelocityY(JUMP_VEL*0.55);
+      }
+    });
+
+    // ─ Boss continuous movement ─
+    if (this.boss && this.boss.active && !this.boss.isDead) {
+      const dx = this.player.x - this.boss.x;
+      this.boss.setFlipX(dx<0);
+    }
+
+    // ─ Projectile bounds cleanup ─
+    this.projectiles.getChildren().forEach(p => {
+      if (p.y > H+50 || p.x < -50 || p.x > 6000) p.destroy();
+    });
+
+    // ─ Fall death ─
+    if (this.player.y > H+40) this.gameOver();
+
+    // ─ HUD (periodic update to avoid spam) ─
+    if (this.game.loop.frame % 10 === 0) this.hudEmit();
+  }
+}
+
+// ─────────────────────────────────────────────
+// PHASER GAME CONFIG
+// ─────────────────────────────────────────────
+const config = {
+  type: Phaser.AUTO,
+  width: W,
+  height: H,
+  backgroundColor: '#0a0a1a',
+  physics: {
+    default: 'arcade',
+    arcade: { gravity:{ y:0 }, debug:false }
+  },
+  scene: [BootScene, TitleScene, HUDScene, ShopScene, GameScene],
+  scale: {
+    mode: Phaser.Scale.FIT,
+    autoCenter: Phaser.Scale.CENTER_BOTH
+  },
+  audio: { disableWebAudio: false }
+};
+
+const game = new Phaser.Game(config);
+</script>
+</body>
+</html>
