@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Milei Bros</title>
+<title>Milei Bros v3</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden;font-family:'Arial Black',Arial,sans-serif}
@@ -15,63 +15,70 @@ canvas{display:block;image-rendering:pixelated}
 #pb{height:100%;background:linear-gradient(90deg,#FFD700,#FF8C00);width:0%;transition:width .1s}
 #pct{margin-top:8px;font-size:13px;color:#FFD700}
 #slogan{margin-top:24px;font-size:22px;color:#fff;font-style:italic;animation:blink 1.5s infinite}
-#err{display:none;position:fixed;top:0;left:0;right:0;background:#aa0000;color:#fff;padding:10px 14px;font-size:13px;z-index:99999;font-family:monospace;max-height:30vh;overflow:auto}
+#err{position:fixed;top:0;left:0;right:0;background:#aa0000;color:#fff;padding:10px 14px;font-size:13px;z-index:99999;font-family:monospace;display:none;max-height:25vh;overflow:auto}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 </style>
 </head>
 <body>
 <div id="load">
   <h1>⚡ MILEI BROS ⚡</h1>
-  <p>Cargando assets...</p>
+  <p>Cargando assets del juego...</p>
   <div id="pbc"><div id="pb"></div></div>
   <div id="pct">0%</div>
   <div id="slogan">¡VIVA LA LIBERTAD, CARAJO!</div>
 </div>
 <div id="err"></div>
+
 <script>
-window.onerror=(msg,src,line)=>{
-  const e=document.getElementById('err');
-  e.style.display='block';
-  e.innerHTML+='<b>ERROR:</b> '+msg+' @ línea '+line+'<br>';
-  return false;
+window.onerror = function(msg, src, line) {
+  var e = document.getElementById('err');
+  e.style.display = 'block';
+  e.innerHTML += '<b>ERROR línea ' + line + ':</b> ' + msg + '<br>';
 };
 </script>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
 <script>
-'use strict';
 
-const BASE='https://albertoezequielhernandez-prog.github.io/sprite-Milei-Bros/';
-const GW=800, GH=450;
+var BASE = 'https://albertoezequielhernandez-prog.github.io/sprite-Milei-Bros/';
+var GW = 800, GH = 450;
 
-// NES Mario physics (px/s for Phaser at 60fps)
-const WALK=90, RUN=150, ACCEL=600, DRAG=700;
-const JUMP_V=-500, DJUMP_V=-370, GRAV=1400;
+// NES Mario physics values at 60fps converted to px/sec
+var WALK   = 90;   // 1.5 px/frame * 60
+var RUN    = 150;  // 2.5 px/frame * 60
+var ACCEL  = 600;  // ~10 frames to max
+var DRAG   = 700;
+var JUMP_V = -500;
+var DJUMP  = -370;
+var GRAV   = 1400;
 
-window.GS={lives:3,coins:0,fiscal:50,level:0,score:0,pendingPU:null};
+window.GS = { lives:3, coins:0, fiscal:50, level:0, score:0, pendingPU:null };
 
-const LEVELS=[
-  {bg:'bg_casa',   name:'CASA ROSADA',    bossKey:'del_cano',  ba:'dc', bossName:'NICO DEL CAÑO',    ally:'ally_alberdi',   allyName:'ALBERDI',    bossHP:100},
-  {bg:'bg_cong',   name:'EL CONGRESO',    bossKey:'massa',     ba:'ma', bossName:'MASSA PANQUEQUE',  ally:'ally_cavallo',   allyName:'CAVALLO',    bossHP:120},
-  {bg:'bg_pan',    name:'EL PANTANO',     bossKey:'kicillof',  ba:'ki', bossName:'KICILLOF',          ally:'ally_sarmiento', allyName:'SARMIENTO',  bossHP:130},
-  {bg:'bg_como',   name:'COMODORO PY',    bossKey:'cristina',  ba:'cf', bossName:'CFK',               ally:'ally_nisman',    allyName:'NISMAN',     bossHP:150},
-  {bg:'bg_banco',  name:'BANCO CENTRAL',  bossKey:'larreta',   ba:'la', bossName:'LARRETA',           ally:'ally_adam',      allyName:'ADAM SMITH', bossHP:140},
-  {bg:'bg_senado', name:'EL SENADO',      bossKey:'villarruel',ba:'vi', bossName:'VILLARRUEL',        ally:'ally_sanmartin', allyName:'SAN MARTÍN', bossHP:160},
-  {bg:'bg_afip',   name:'LA AFIP',        bossKey:'moreno',    ba:'mr', bossName:'MORENO',            ally:'ally_friedman',  allyName:'FRIEDMAN',   bossHP:180},
-  {bg:'bg_fmi',    name:'EL FMI',         bossKey:'boss_fmi',  ba:'fi', bossName:'LA CASTA SUPREMA',  ally:'ally_hayek',     allyName:'HAYEK',      bossHP:300},
+var LEVELS = [
+  { bg:'bg_casa',   name:'CASA ROSADA',    bk:'del_cano',   ba:'dc', bn:'NICO DEL CAÑO',    ally:'ally_alberdi',   an:'ALBERDI',    hp:100 },
+  { bg:'bg_cong',   name:'EL CONGRESO',    bk:'massa',      ba:'ma', bn:'MASSA PANQUEQUE',  ally:'ally_cavallo',   an:'CAVALLO',    hp:120 },
+  { bg:'bg_pan',    name:'EL PANTANO',     bk:'kicillof',   ba:'ki', bn:'KICILLOF',          ally:'ally_sarmiento', an:'SARMIENTO',  hp:130 },
+  { bg:'bg_como',   name:'COMODORO PY',    bk:'cristina',   ba:'cf', bn:'CFK',               ally:'ally_nisman',    an:'NISMAN',     hp:150 },
+  { bg:'bg_banco',  name:'BANCO CENTRAL',  bk:'larreta',    ba:'la', bn:'LARRETA',           ally:'ally_adam',      an:'ADAM SMITH', hp:140 },
+  { bg:'bg_senado', name:'EL SENADO',      bk:'villarruel', ba:'vi', bn:'VILLARRUEL',        ally:'ally_sanmartin', an:'SAN MARTÍN', hp:160 },
+  { bg:'bg_afip',   name:'LA AFIP',        bk:'moreno',     ba:'mr', bn:'MORENO',            ally:'ally_friedman',  an:'FRIEDMAN',   hp:180 },
+  { bg:'bg_fmi',    name:'EL FMI',         bk:'boss_fmi',   ba:'fi', bn:'LA CASTA SUPREMA',  ally:'ally_hayek',     an:'HAYEK',      hp:300 },
 ];
 
-// ════════════════════════════════════════════
-//  BOOT
-// ════════════════════════════════════════════
-class Boot extends Phaser.Scene {
-  constructor(){ super('Boot'); }
+// =============================================================
+// BOOT
+// =============================================================
+var Boot = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function Boot() { Phaser.Scene.call(this, { key: 'Boot' }); },
 
-  preload(){
-    const pb=document.getElementById('pb'), pct=document.getElementById('pct');
-    this.load.on('progress',v=>{pb.style.width=(v*100)+'%';pct.textContent=Math.floor(v*100)+'%';});
-    this.load.on('complete',()=>document.getElementById('load').style.display='none');
+  preload: function() {
+    var pb  = document.getElementById('pb');
+    var pct = document.getElementById('pct');
+    this.load.on('progress', function(v) { pb.style.width = (v*100)+'%'; pct.textContent = Math.floor(v*100)+'%'; });
+    this.load.on('complete', function() { document.getElementById('load').style.display = 'none'; });
 
-    // ── Backgrounds ──
+    // Backgrounds
     this.load.image('bg_casa',   BASE+'assets/backgrounds/Casa%20rosada.png');
     this.load.image('bg_cong',   BASE+'assets/backgrounds/Congreso.png');
     this.load.image('bg_pan',    BASE+'assets/backgrounds/pantano.png');
@@ -81,873 +88,991 @@ class Boot extends Phaser.Scene {
     this.load.image('bg_afip',   BASE+'assets/backgrounds/AFIP.png');
     this.load.image('bg_fmi',    BASE+'assets/backgrounds/FMI.png');
 
-    // ── Allies (static images) ──
-    const allies={
-      alberdi:'sprite%20alberdi',nisman:'sprite%20nismann',cavallo:'sprite%20cavallo',
-      sarmiento:'sprite%20sarmiento',adam:'sprite%20adam%20smith',sanmartin:'sprite%20San%20Martin',
-      friedman:'sprite%20friedman',hayek:'sprite%20hayek',trump:'sprite%20Trump',
-      elon:'sprite%20elon%20musk',espert:'sprite%20Espert',bullrich:'sprite%20bullrich'
-    };
-    Object.entries(allies).forEach(([n,f])=>this.load.image('ally_'+n,BASE+'assets/allies/'+f+'%20optimizado.png'));
+    // Allies
+    this.load.image('ally_alberdi',   BASE+'assets/allies/sprite%20alberdi%20optimizado.png');
+    this.load.image('ally_nisman',    BASE+'assets/allies/sprite%20nismann%20optimizado.png');
+    this.load.image('ally_cavallo',   BASE+'assets/allies/sprite%20cavallo%20optimizado.png');
+    this.load.image('ally_sarmiento', BASE+'assets/allies/sprite%20sarmiento%20optimizado.png');
+    this.load.image('ally_adam',      BASE+'assets/allies/sprite%20adam%20smith%20optimizado.png');
+    this.load.image('ally_sanmartin', BASE+'assets/allies/sprite%20San%20Martin%20optimizado.png');
+    this.load.image('ally_friedman',  BASE+'assets/allies/sprite%20friedman%20optimizado.png');
+    this.load.image('ally_hayek',     BASE+'assets/allies/sprite%20hayek%20optimizado.png');
+    this.load.image('ally_espert',    BASE+'assets/allies/sprite%20Espert%20optimizado.png');
 
-    // ── Spritesheets loaded as raw images (auto frame detection in create) ──
-    this._ss=[
-      {raw:'r_milei',    key:'milei',     url:'assets/sprites/spritesheets%20milei%20optimizado.png',                              cols:13,rows:1},
-      {raw:'r_ck',       key:'cuca_k',    url:'assets/sprites/spritesheets%20cucaracha%20k%20optimizado.png',                     cols:7, rows:1},
-      {raw:'r_ca',       key:'cuca_arm',  url:'assets/sprites/spritesheets%20cucaracha%20k%20armada%20optimizado.png',            cols:8, rows:1},
-      {raw:'r_si',       key:'sind',      url:'assets/sprites/spritesheets%20sindicalista%20optmizado.png',                       cols:9, rows:1},
-      {raw:'r_dc',       key:'del_cano',  url:'assets/sprites/spritesheets%20del%20ca%C3%B1o%20optimizado.png',                   cols:3, rows:4},
-      {raw:'r_ma',       key:'massa',     url:'assets/sprites/spritesheets%20massa%20optimizado.png',                             cols:3, rows:4},
-      {raw:'r_ki',       key:'kicillof',  url:'assets/sprites/spritesheets%20kicillof%20optimizado.png',                         cols:3, rows:4},
-      {raw:'r_cf',       key:'cristina',  url:'assets/sprites/spritesheets%20cristina%20optimizado.png',                         cols:3, rows:4},
-      {raw:'r_la',       key:'larreta',   url:'assets/sprites/spritesheets%20larreta%20optimizado.png',                          cols:3, rows:4},
-      {raw:'r_vi',       key:'villarruel',url:'assets/sprites/spritesheets%20villarruel%20optimizado.png',                       cols:3, rows:3},
-      {raw:'r_mo',       key:'morsa',     url:'assets/sprites/spritesheets%20morsa%20fernandez.png',                              cols:3, rows:3},
-      {raw:'r_mr',       key:'moreno',    url:'assets/bosses/spritesheets%20moreno%20optimizado.png',                             cols:4, rows:3},
-      {raw:'r_fi',       key:'boss_fmi',  url:'assets/bosses/boss%20fmi.png',                                                    cols:4, rows:3},
-      {raw:'r_macri',    key:'macri',     url:'assets/sprites/spritesheets%20macri%20gato_macri_transparent%20opti....png',      cols:9, rows:1},
-      {raw:'r_pups',     key:'pups',      url:'assets/powerups/sprites%20power-ups.png',                                         cols:20,rows:1},
+    // Spritesheets loaded as raw images - auto frame detect in create()
+    this._ss = [
+      { raw:'r_milei',    key:'milei',      url:'assets/sprites/spritesheets%20milei%20optimizado.png',                            c:13, r:1 },
+      { raw:'r_ck',       key:'cuca_k',     url:'assets/sprites/spritesheets%20cucaracha%20k%20optimizado.png',                   c:7,  r:1 },
+      { raw:'r_ca',       key:'cuca_arm',   url:'assets/sprites/spritesheets%20cucaracha%20k%20armada%20optimizado.png',          c:8,  r:1 },
+      { raw:'r_si',       key:'sind',       url:'assets/sprites/spritesheets%20sindicalista%20optmizado.png',                     c:9,  r:1 },
+      { raw:'r_dc',       key:'del_cano',   url:'assets/sprites/spritesheets%20del%20ca%C3%B1o%20optimizado.png',                 c:4,  r:3 },
+      { raw:'r_ma',       key:'massa',      url:'assets/sprites/spritesheets%20massa%20optimizado.png',                           c:4,  r:3 },
+      { raw:'r_ki',       key:'kicillof',   url:'assets/sprites/spritesheets%20kicillof%20optimizado.png',                       c:3,  r:4 },
+      { raw:'r_cf',       key:'cristina',   url:'assets/sprites/spritesheets%20cristina%20optimizado.png',                       c:3,  r:4 },
+      { raw:'r_la',       key:'larreta',    url:'assets/sprites/spritesheets%20larreta%20optimizado.png',                        c:3,  r:4 },
+      { raw:'r_vi',       key:'villarruel', url:'assets/sprites/spritesheets%20villarruel%20optimizado.png',                     c:3,  r:3 },
+      { raw:'r_mo',       key:'morsa',      url:'assets/sprites/spritesheets%20morsa%20fernandez.png',                            c:3,  r:3 },
+      { raw:'r_mr',       key:'moreno',     url:'assets/bosses/spritesheets%20moreno%20optimizado.png',                          c:4,  r:3 },
+      { raw:'r_fi',       key:'boss_fmi',   url:'assets/bosses/boss%20fmi.png',                                                  c:4,  r:3 },
+      { raw:'r_macri',    key:'macri',      url:'assets/sprites/spritesheets%20macri%20gato_macri_transparent%20opti....png',    c:9,  r:1 },
+      { raw:'r_pups',     key:'pups',       url:'assets/powerups/sprites%20power-ups.png',                                       c:20, r:1 },
     ];
-    this._ss.forEach(s=>this.load.image(s.raw, BASE+s.url));
-
-    // ── Audio ──
-    this.load.audio('snd_zurdos',   BASE+'assets/music/voz_milei_zurdos.mp3');
-    this.load.audio('snd_viva',     BASE+'assets/music/voz_milei_viva_libertad.mp3');
-    this.load.audio('snd_completo', BASE+'assets/music/voz_milei_completo.mp3');
-  }
-
-  create(){
-    // 1x1 white pixel for platform bodies
-    const g=this.make.graphics({add:false});
-    g.fillStyle(0xFFFFFF,1); g.fillRect(0,0,4,4);
-    g.generateTexture('px',4,4); g.destroy();
-
-    // Auto-detect frame sizes and register spritesheets
-    this._ss.forEach(s=>{
-      try{
-        const tex=this.textures.get(s.raw);
-        const img=tex.getSourceImage();
-        const fw=Math.floor(img.width/s.cols);
-        const fh=Math.floor(img.height/s.rows);
-        console.log(`✅ ${s.key}: ${img.width}×${img.height} → frame ${fw}×${fh}`);
-        this.textures.addSpriteSheet(s.key, img, {frameWidth:fw, frameHeight:fh});
-      }catch(e){ console.warn('❌ spritesheet fail: '+s.key, e.message); }
-    });
-
-    this._createAnims();
-    this.scene.start('Title');
-  }
-
-  _mk(key,src,s,e,fps,loop){
-    try{
-      if(!this.anims.exists(key))
-        this.anims.create({key, frames:this.anims.generateFrameNumbers(src,{start:s,end:e}), frameRate:fps, repeat:loop?-1:0});
-    }catch(err){ console.warn('anim fail:',key,err.message); }
-  }
-
-  _createAnims(){
-    const m=(k,s,f,t,fps,lp)=>this._mk(k,s,f,t,fps,lp!==false);
-
-    // Milei (13 frames, single row)
-    m('m_idle','milei',0,1,4);
-    m('m_walk','milei',2,5,12);
-    m('m_jump','milei',6,6,1);
-    m('m_atk', 'milei',7,10,14,false);
-    m('m_hit', 'milei',11,11,1, false);
-    m('m_die', 'milei',11,12,6, false);
-
-    // Cucaracha K (7 frames, row 1)
-    m('ck_walk','cuca_k',0,2,8);
-    m('ck_die', 'cuca_k',3,6,8,false);
-
-    // Cucaracha armada (8 frames, row 1)
-    m('ca_walk','cuca_arm',0,2,8);
-    m('ca_hit', 'cuca_arm',3,5,8,false);
-    m('ca_die', 'cuca_arm',6,7,6,false);
-
-    // Sindicalista (9 frames, row 1)
-    m('si_walk','sind',0,2,6);
-    m('si_atk', 'sind',3,5,8,false);
-    m('si_die', 'sind',6,8,6,false);
-
-    // Bosses (grids, frames numbered row-by-row)
-    [
-      {p:'dc',src:'del_cano',  i:[0,1],a:[2,7], d:[8,11]},
-      {p:'ma',src:'massa',     i:[0,1],a:[2,8], d:[9,11]},
-      {p:'ki',src:'kicillof',  i:[0,1],a:[2,8], d:[9,10]},
-      {p:'cf',src:'cristina',  i:[0,1],a:[2,8], d:[9,10]},
-      {p:'la',src:'larreta',   i:[0,1],a:[2,8], d:[9,11]},
-      {p:'vi',src:'villarruel',i:[0,1],a:[2,7], d:[8,8]},
-      {p:'mo',src:'morsa',     i:[0,1],a:[3,6], d:[7,8]},
-      {p:'mr',src:'moreno',    i:[0,1],a:[4,9], d:[10,11]},
-      {p:'fi',src:'boss_fmi',  i:[0,1],a:[2,7], d:[10,11]},
-    ].forEach(b=>{
-      m(`${b.p}_idle`,b.src,b.i[0],b.i[1],4);
-      m(`${b.p}_atk`, b.src,b.a[0],b.a[1],8,false);
-      m(`${b.p}_die`, b.src,b.d[0],b.d[1],6,false);
-    });
-
-    // Macri Gato (9 frames, single row)
-    m('mg_idle','macri',0,2,4);
-    m('mg_good','macri',4,4,4,false);
-    m('mg_bad', 'macri',5,5,4,false);
-    m('mg_exit','macri',6,8,6,false);
-
-    // Power-ups (20 frames single row: 5 items × 4 frames each)
-    m('pu_dollar',  'pups',0, 3, 8);
-    m('pu_chainsaw','pups',4, 7, 8);
-    m('pu_hayek',   'pups',8, 11,8);
-    m('pu_mane',    'pups',12,15,8);
-    m('pu_shield',  'pups',16,19,8);
-  }
-}
-
-// ════════════════════════════════════════════
-//  TITLE
-// ════════════════════════════════════════════
-class Title extends Phaser.Scene {
-  constructor(){ super('Title'); }
-
-  create(){
-    window.GS={lives:3,coins:0,fiscal:50,level:0,score:0,pendingPU:null};
-
-    this.add.image(GW/2,GH/2,'bg_casa').setDisplaySize(GW,GH);
-    this.add.rectangle(GW/2,GH/2,GW,GH,0x000033,0.55);
-
-    // Stars
-    for(let i=0;i<22;i++){
-      const s=this.add.circle(Phaser.Math.Between(0,GW),Phaser.Math.Between(0,GH),Phaser.Math.Between(1,3),0xFFFFFF,Phaser.Math.FloatBetween(.3,1));
-      this.tweens.add({targets:s,alpha:0,duration:Phaser.Math.Between(500,2000),yoyo:true,repeat:-1,delay:Phaser.Math.Between(0,2000)});
+    for (var i = 0; i < this._ss.length; i++) {
+      this.load.image(this._ss[i].raw, BASE + this._ss[i].url);
     }
 
-    // Title text
-    this.add.text(GW/2+3,73,'⚡ MILEI BROS ⚡',{fontSize:'50px',fill:'#000',fontFamily:'Arial Black'}).setOrigin(0.5);
-    const ttl=this.add.text(GW/2,70,'⚡ MILEI BROS ⚡',{fontSize:'50px',fill:'#FFD700',stroke:'#7B3F00',strokeThickness:6,fontFamily:'Arial Black'}).setOrigin(0.5);
-    this.tweens.add({targets:ttl,scaleX:1.04,scaleY:1.04,duration:900,yoyo:true,repeat:-1});
+    // Audio
+    this.load.audio('snd_z', BASE+'assets/music/voz_milei_zurdos.mp3');
+    this.load.audio('snd_v', BASE+'assets/music/voz_milei_viva_libertad.mp3');
+    this.load.audio('snd_c', BASE+'assets/music/voz_milei_completo.mp3');
+  },
 
-    // Hero
-    const hero=this.add.sprite(GW/2,GH/2-10,'milei').setScale(2.2);
-    try{hero.play('m_idle');}catch(e){}
-    this.tweens.add({targets:hero,y:GH/2-22,duration:700,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+  create: function() {
+    // White pixel for platform bodies
+    var g = this.make.graphics({ add: false });
+    g.fillStyle(0xFFFFFF, 1);
+    g.fillRect(0, 0, 4, 4);
+    g.generateTexture('px', 4, 4);
+    g.destroy();
 
-    // Enemies at sides
-    try{
-      const el=this.add.sprite(60,GH-70,'cuca_k').setScale(2.2); el.play('ck_walk');
-      const er=this.add.sprite(GW-60,GH-70,'cuca_k').setScale(2.2).setFlipX(true); er.play('ck_walk');
-    }catch(e){}
-
-    // Coins
-    try{
-      [90,210,330,470,590,710].forEach(x=>{
-        const c=this.add.sprite(x,GH-35,'pups').setScale(1.3);
-        try{c.play('pu_dollar');}catch(e){}
-      });
-    }catch(e){}
-
-    // Menu
-    let sel=0;
-    const opts=[
-      {t:'▶  NUEVA PARTIDA', fn:()=>this.scene.start('Game')},
-      {t:'⌨  CONTROLES',     fn:()=>this._showControls()},
-      {t:'📊  SCORE: 0',      fn:()=>{}},
-    ];
-    const mi=opts.map((o,i)=>
-      this.add.text(GW/2,GH/2+90+i*40,o.t,{
-        fontSize:'20px',fill:i===0?'#FFD700':'#FFF',
-        fontFamily:'Arial Black',stroke:'#000',strokeThickness:3
-      }).setOrigin(0.5).setInteractive()
-    );
-    const upd=()=>mi.forEach((m,i)=>{m.setStyle({fill:i===sel?'#FFD700':'#FFF'});m.setScale(i===sel?1.08:1);});
-    mi.forEach((m,i)=>{
-      m.on('pointerdown',()=>opts[i].fn());
-      m.on('pointerover',()=>{sel=i;upd();});
-    });
-
-    const KC=Phaser.Input.Keyboard.KeyCodes;
-    this.input.keyboard.addKey(KC.UP).on('down',   ()=>{sel=(sel-1+opts.length)%opts.length;upd();});
-    this.input.keyboard.addKey(KC.DOWN).on('down', ()=>{sel=(sel+1)%opts.length;upd();});
-    this.input.keyboard.addKey(KC.ENTER).on('down',()=>opts[sel].fn());
-    this.input.keyboard.addKey(KC.SPACE).on('down',()=>opts[0].fn());
-
-    const ps=this.add.text(GW/2,GH-28,'✦ ENTER TO START ✦',{fontSize:'13px',fill:'#fff',fontFamily:'Arial'}).setOrigin(0.5);
-    this.tweens.add({targets:ps,alpha:0,duration:500,yoyo:true,repeat:-1});
-    this.add.text(8,GH-15,'© 2025 VIVA LA LIBERTAD',{fontSize:'10px',fill:'#FFD700',fontFamily:'Arial'});
-    this.add.text(GW/2,GH-48,'Flechas: Mover | ↑/Espacio: Saltar | Z: Atacar | Shift: Correr | P: Pausar',{fontSize:'9px',fill:'#666',fontFamily:'Arial'}).setOrigin(0.5);
-  }
-
-  _showControls(){
-    const bg=this.add.rectangle(GW/2,GH/2,470,270,0x000,0.94).setDepth(10).setInteractive();
-    const t=this.add.text(GW/2,GH/2,[
-      '─── CONTROLES ───','',
-      '← → : Moverse  |  ↑ / Espacio : Saltar',
-      '↑ doble toque : Doble salto',
-      'Shift : Correr  |  Z : Atacar',
-      '↓ : Agacharse  |  P / Esc : Pausar',
-      '','Presioná cualquier tecla para cerrar'
-    ].join('\n'),{fontSize:'15px',fill:'#FFD700',fontFamily:'Arial',align:'center',lineSpacing:5}).setOrigin(0.5).setDepth(11);
-    const close=()=>{bg.destroy();t.destroy();};
-    bg.on('pointerdown',close);
-    this.input.keyboard.once('keydown',close);
-  }
-}
-
-// ════════════════════════════════════════════
-//  HUD
-// ════════════════════════════════════════════
-class HUD extends Phaser.Scene {
-  constructor(){ super({key:'HUD',active:false}); }
-  create(){
-    const S={fontFamily:'Arial Black',stroke:'#000',strokeThickness:3};
-    this.livT =this.add.text(8,  6,'',{...S,fontSize:'15px',fill:'#fff'});
-    this.scrT =this.add.text(8, 25,'',{fontSize:'11px',fill:'#FFD700',fontFamily:'Arial'});
-    this.lvlT =this.add.text(GW/2,6,'',{...S,fontSize:'13px',fill:'#fff'}).setOrigin(0.5,0);
-    this.coinT=this.add.text(GW-8,6,'',{...S,fontSize:'15px',fill:'#FFD700'}).setOrigin(1,0);
-    this.add.text(GW/2,25,'EQUILIBRIO FISCAL',{fontSize:'9px',fill:'#FFD700',fontFamily:'Arial'}).setOrigin(0.5,0);
-    this.fBg =this.add.rectangle(GW/2,41,180,10,0x222).setOrigin(0.5);
-    this.fBar=this.add.rectangle(GW/2-90,41,180,10,0x00CC00).setOrigin(0,0.5);
-    this.puT =this.add.text(8,44,'',{fontSize:'10px',fill:'#0FF',fontFamily:'Arial'});
-    this.bBg =this.add.rectangle(GW/2,GH-20,400,14,0x440000).setOrigin(0.5).setVisible(false);
-    this.bBar=this.add.rectangle(GW/2-200,GH-20,400,14,0xFF2200).setOrigin(0,0.5).setVisible(false);
-    this.bNm =this.add.text(GW/2,GH-35,'',{...S,fontSize:'12px',fill:'#F55'}).setOrigin(0.5).setVisible(false);
-
-    this.game.events.on('hud',d=>{
-      const gs=window.GS;
-      this.livT.setText('🦁 x'+gs.lives);
-      this.scrT.setText('SCORE: '+gs.score);
-      this.lvlT.setText(d.lvl||'');
-      this.coinT.setText('$ '+gs.coins);
-      this.fBar.width=Math.max(0,(gs.fiscal/100)*180);
-      this.fBar.fillColor=gs.fiscal>60?0x00CC00:gs.fiscal>30?0xFFCC00:0xFF2200;
-      this.puT.setText(d.pu?'⚡ '+d.pu:'');
-      if(d.bhp!=null){
-        this.bBg.setVisible(true); this.bBar.setVisible(true); this.bNm.setVisible(true);
-        this.bNm.setText(d.bnm||'');
-        this.bBar.width=Math.max(0,(d.bhp/d.bmx)*400);
-      }else{
-        this.bBg.setVisible(false); this.bBar.setVisible(false); this.bNm.setVisible(false);
+    // Convert raw images to spritesheet textures
+    for (var i = 0; i < this._ss.length; i++) {
+      var s = this._ss[i];
+      try {
+        var tex = this.textures.get(s.raw);
+        var img = tex.getSourceImage();
+        var fw  = Math.floor(img.width  / s.c);
+        var fh  = Math.floor(img.height / s.r);
+        console.log('SS ' + s.key + ': ' + img.width + 'x' + img.height + ' => frame ' + fw + 'x' + fh);
+        this.textures.addSpriteSheet(s.key, img, { frameWidth: fw, frameHeight: fh });
+      } catch(e) {
+        console.warn('Failed spritesheet: ' + s.key, e.message);
       }
-    });
-  }
-}
+    }
 
-// ════════════════════════════════════════════
-//  SHOP
-// ════════════════════════════════════════════
-class Shop extends Phaser.Scene {
-  constructor(){ super('Shop'); }
-  create(){
-    const gs=window.GS;
-    this.add.rectangle(GW/2,GH/2,GW,GH,0x050505,0.96);
-    const espert=this.add.image(155,GH/2+20,'ally_espert').setScale(0.55);
-    this.tweens.add({targets:espert,y:espert.y-10,duration:900,yoyo:true,repeat:-1});
-    this.add.text(GW/2+45,14,'🏪 LIBRE MERCADO SHOP',{fontSize:'22px',fill:'#FFD700',fontFamily:'Arial Black',stroke:'#000',strokeThickness:4}).setOrigin(0.5,0);
-    this.mT=this.add.text(GW/2+45,50,'Monedas: $'+gs.coins,{fontSize:'15px',fill:'#0F0',fontFamily:'Arial'}).setOrigin(0.5,0);
-    this.chosen=null;
+    this._buildAnims();
+    this.scene.start('Title');
+  },
 
-    const items=[
-      {l:'🔧 Motosierra+',p:50,pu:'chainsaw',d:'Daño doble 20s'},
-      {l:'📖 Libro Hayek',p:75,pu:'hayek',   d:'Invencible 10s'},
-      {l:'🦁 Peluca León', p:40,pu:'mane',   d:'Velocidad x2'},
-      {l:'💰 Dolarito',    p:60,pu:'shield', d:'Absorbe 3 golpes'},
-      {l:'❤️ Vida extra',  p:100,pu:'life',  d:'+1 vida'},
-    ];
-    const quotes=['"¡Excelente inversión!"','"El mercado tiene razón"','"¡Comprá antes que se infle!"','"Puro libre mercado"'];
-
-    items.forEach((it,i)=>{
-      const by=95+i*52, ok=gs.coins>=it.p;
-      const btn=this.add.rectangle(GW/2+45,by,330,44,ok?0x143014:0x1a1a1a).setInteractive().setOrigin(0.5);
-      this.add.text(GW/2+45-145,by,it.l,{fontSize:'14px',fill:ok?'#FFD700':'#555',fontFamily:'Arial Black'}).setOrigin(0,0.5);
-      this.add.text(GW/2+45+110,by-9,'$'+it.p,{fontSize:'13px',fill:ok?'#0F0':'#444',fontFamily:'Arial'}).setOrigin(0.5);
-      this.add.text(GW/2+45+110,by+9,it.d,{fontSize:'10px',fill:'#888',fontFamily:'Arial'}).setOrigin(0.5);
-      if(ok){
-        btn.on('pointerover',()=>btn.setFillStyle(0x1d551d));
-        btn.on('pointerout', ()=>btn.setFillStyle(0x143014));
-        btn.on('pointerdown',()=>{
-          gs.coins-=it.p; this.chosen=it.pu;
-          this.mT.setText('Monedas: $'+gs.coins); btn.setFillStyle(0x003300);
-          const qt=this.add.text(GW/2+45,GH-42,quotes[Math.floor(Math.random()*quotes.length)],{fontSize:'12px',fill:'#fff',fontFamily:'Arial',fontStyle:'italic'}).setOrigin(0.5).setDepth(5);
-          this.time.delayedCall(2200,()=>qt.destroy());
+  _anim: function(key, src, s, e, fps, loop) {
+    try {
+      if (!this.anims.exists(key)) {
+        this.anims.create({
+          key: key,
+          frames: this.anims.generateFrameNumbers(src, { start: s, end: e }),
+          frameRate: fps,
+          repeat: loop ? -1 : 0
         });
       }
-    });
+    } catch(err) { console.warn('Anim fail: ' + key, err.message); }
+  },
 
-    const cont=this.add.text(GW/2+45,GH-14,'▶ CONTINUAR →',{fontSize:'16px',fill:'#FFD700',fontFamily:'Arial Black',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setInteractive();
-    cont.on('pointerover',()=>cont.setFill('#FFA500'));
-    cont.on('pointerout', ()=>cont.setFill('#FFD700'));
-    cont.on('pointerdown',()=>this._go());
-    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on('down',()=>this._go());
+  _buildAnims: function() {
+    var a = this._anim.bind(this);
+    // Milei
+    a('m_idle', 'milei', 0, 1,  4,  true);
+    a('m_walk', 'milei', 2, 5,  12, true);
+    a('m_jump', 'milei', 6, 6,  1,  true);
+    a('m_atk',  'milei', 7, 10, 14, false);
+    a('m_hit',  'milei', 11, 11, 1, false);
+    a('m_die',  'milei', 11, 12, 6, false);
+    // Cucaracha K
+    a('ck_walk', 'cuca_k', 0, 2, 8, true);
+    a('ck_die',  'cuca_k', 3, 6, 8, false);
+    // Armada
+    a('ca_walk', 'cuca_arm', 0, 2, 8, true);
+    a('ca_hit',  'cuca_arm', 3, 5, 8, false);
+    a('ca_die',  'cuca_arm', 6, 7, 6, false);
+    // Sindicalista
+    a('si_walk', 'sind', 0, 2, 6, true);
+    a('si_die',  'sind', 6, 8, 6, false);
+    // Bosses
+    var bosses = [
+      {p:'dc',k:'del_cano',  i0:0,i1:1, a0:2,a1:5,  d0:6,d1:11},
+      {p:'ma',k:'massa',     i0:0,i1:1, a0:2,a1:7,  d0:9,d1:11},
+      {p:'ki',k:'kicillof',  i0:0,i1:1, a0:2,a1:5,  d0:9,d1:10},
+      {p:'cf',k:'cristina',  i0:0,i1:1, a0:2,a1:7,  d0:9,d1:10},
+      {p:'la',k:'larreta',   i0:0,i1:1, a0:2,a1:5,  d0:9,d1:11},
+      {p:'vi',k:'villarruel',i0:0,i1:1, a0:2,a1:5,  d0:6,d1:8},
+      {p:'mo',k:'morsa',     i0:0,i1:1, a0:3,a1:5,  d0:7,d1:8},
+      {p:'mr',k:'moreno',    i0:0,i1:1, a0:4,a1:7,  d0:10,d1:11},
+      {p:'fi',k:'boss_fmi',  i0:0,i1:1, a0:2,a1:5,  d0:10,d1:11},
+    ];
+    for (var i = 0; i < bosses.length; i++) {
+      var b = bosses[i];
+      a(b.p+'_idle', b.k, b.i0, b.i1, 4,  true);
+      a(b.p+'_atk',  b.k, b.a0, b.a1, 8,  false);
+      a(b.p+'_die',  b.k, b.d0, b.d1, 6,  false);
+    }
+    // Macri
+    a('mg_idle', 'macri', 0, 2, 4, true);
+    a('mg_good', 'macri', 4, 4, 4, false);
+    a('mg_bad',  'macri', 5, 5, 4, false);
+    a('mg_exit', 'macri', 6, 8, 6, false);
+    // Power-ups
+    a('pu_dollar',   'pups', 0,  3,  8, true);
+    a('pu_chainsaw', 'pups', 4,  7,  8, true);
+    a('pu_hayek',    'pups', 8,  11, 8, true);
+    a('pu_mane',     'pups', 12, 15, 8, true);
+    a('pu_shield',   'pups', 16, 19, 8, true);
   }
-  _go(){ window.GS.pendingPU=this.chosen; this.scene.stop('HUD'); this.scene.start('Game'); }
-}
+});
 
-// ════════════════════════════════════════════
-//  GAME
-// ════════════════════════════════════════════
-class Game extends Phaser.Scene {
-  constructor(){ super('Game'); }
+// =============================================================
+// TITLE
+// =============================================================
+var Title = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function Title() { Phaser.Scene.call(this, { key: 'Title' }); },
 
-  create(){
-    const gs=window.GS;
-    const lv=LEVELS[gs.level]||LEVELS[0];
-    this.lv=lv;
+  create: function() {
+    window.GS = { lives:3, coins:0, fiscal:50, level:0, score:0, pendingPU:null };
 
-    // ── State ──
-    this.attacking=false; this.invincible=false; this.chainsawOn=false;
-    this.activePU=null; this.combo=0;
-    this.bossSpawned=false; this.allyGiven=false;
-    this.bossRef=null; this.bossHP=lv.bossHP; this.bossMaxHP=lv.bossHP;
-    this.done=false; this.paused=false; this.pauseUI=null; this.bossTimer=null;
+    this.add.image(GW/2, GH/2, 'bg_casa').setDisplaySize(GW, GH);
+    this.add.rectangle(GW/2, GH/2, GW, GH, 0x000033, 0.55);
 
-    const WW=5000;
-    if(gs.pendingPU){ this._applyPU(gs.pendingPU); gs.pendingPU=null; }
+    // Stars
+    for (var i = 0; i < 20; i++) {
+      var star = this.add.circle(
+        Phaser.Math.Between(0, GW), Phaser.Math.Between(0, GH),
+        Phaser.Math.Between(1, 3), 0xFFFFFF, Phaser.Math.FloatBetween(0.3, 1)
+      );
+      this.tweens.add({ targets: star, alpha: 0, duration: Phaser.Math.Between(500, 2000), yoyo: true, repeat: -1, delay: Phaser.Math.Between(0, 2000) });
+    }
 
-    // ── Physics world ──
-    this.physics.world.setBounds(0,0,WW,GH);
-    this.physics.world.gravity.y=GRAV;
+    // Title
+    this.add.text(GW/2+3, 73, '⚡ MILEI BROS ⚡', { fontSize:'50px', fill:'#000', fontFamily:'Arial Black' }).setOrigin(0.5);
+    var ttl = this.add.text(GW/2, 70, '⚡ MILEI BROS ⚡', { fontSize:'50px', fill:'#FFD700', stroke:'#7B3F00', strokeThickness:6, fontFamily:'Arial Black' }).setOrigin(0.5);
+    this.tweens.add({ targets: ttl, scaleX: 1.04, scaleY: 1.04, duration: 900, yoyo: true, repeat: -1 });
 
-    // ── Background ──
-    this.add.image(0,0,lv.bg).setOrigin(0,0).setDisplaySize(WW,GH);
+    // Hero
+    var hero = this.add.sprite(GW/2, GH/2-10, 'milei').setScale(2.2);
+    try { hero.play('m_idle'); } catch(e) {}
+    this.tweens.add({ targets: hero, y: GH/2-22, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
-    // ── Platforms ──
-    this.platGrp=this.physics.add.staticGroup();
+    // Enemy cucarachas
+    try {
+      var el = this.add.sprite(60, GH-70, 'cuca_k').setScale(2.2); el.play('ck_walk');
+      var er = this.add.sprite(GW-60, GH-70, 'cuca_k').setScale(2.2).setFlipX(true); er.play('ck_walk');
+    } catch(e) {}
+
+    // Coins at bottom
+    var coinX = [90, 210, 330, 470, 590, 710];
+    for (var i = 0; i < coinX.length; i++) {
+      var c = this.add.sprite(coinX[i], GH-35, 'pups').setScale(1.3);
+      try { c.play('pu_dollar'); } catch(e) {}
+    }
+
+    // Menu
+    var scene = this;
+    var sel = 0;
+    var opts = [
+      { t: '▶  NUEVA PARTIDA', fn: function() { scene.scene.start('Game'); } },
+      { t: '⌨  CONTROLES',     fn: function() { scene._showCtrls(); } },
+      { t: '📊  PUNTAJE: 0',    fn: function() {} },
+    ];
+
+    var mi = [];
+    for (var i = 0; i < opts.length; i++) {
+      (function(idx) {
+        var m = scene.add.text(GW/2, GH/2+90+idx*40, opts[idx].t, {
+          fontSize: '20px', fill: idx === 0 ? '#FFD700' : '#FFF',
+          fontFamily: 'Arial Black', stroke: '#000', strokeThickness: 3
+        }).setOrigin(0.5).setInteractive();
+        m.on('pointerdown', function() { opts[idx].fn(); });
+        m.on('pointerover', function() { sel = idx; upd(); });
+        mi.push(m);
+      })(i);
+    }
+
+    function upd() {
+      for (var j = 0; j < mi.length; j++) {
+        mi[j].setStyle({ fill: j === sel ? '#FFD700' : '#FFF' });
+        mi[j].setScale(j === sel ? 1.08 : 1);
+      }
+    }
+
+    var KC = Phaser.Input.Keyboard.KeyCodes;
+    this.input.keyboard.addKey(KC.UP).on('down',    function() { sel = (sel - 1 + opts.length) % opts.length; upd(); });
+    this.input.keyboard.addKey(KC.DOWN).on('down',  function() { sel = (sel + 1) % opts.length; upd(); });
+    this.input.keyboard.addKey(KC.ENTER).on('down', function() { opts[sel].fn(); });
+    this.input.keyboard.addKey(KC.SPACE).on('down', function() { opts[0].fn(); });
+
+    var ps = this.add.text(GW/2, GH-28, '✦ ENTER TO START ✦', { fontSize: '13px', fill: '#fff', fontFamily: 'Arial' }).setOrigin(0.5);
+    this.tweens.add({ targets: ps, alpha: 0, duration: 500, yoyo: true, repeat: -1 });
+    this.add.text(8, GH-15, '© 2025 VIVA LA LIBERTAD', { fontSize: '10px', fill: '#FFD700', fontFamily: 'Arial' });
+    this.add.text(GW/2, GH-48, 'Flechas: Mover | ↑/Espacio: Saltar | Z: Atacar | Shift: Correr | P: Pausar', { fontSize: '9px', fill: '#666', fontFamily: 'Arial' }).setOrigin(0.5);
+  },
+
+  _showCtrls: function() {
+    var bg = this.add.rectangle(GW/2, GH/2, 470, 270, 0x000000, 0.94).setDepth(10).setInteractive();
+    var t  = this.add.text(GW/2, GH/2, [
+      '─── CONTROLES ───', '',
+      '← → : Moverse',
+      '↑ / Espacio : Saltar',
+      '↑ doble : Doble salto',
+      'Shift : Correr  |  Z : Atacar',
+      '↓ : Agacharse  |  P/Esc : Pausar',
+      '', 'Cualquier tecla para cerrar'
+    ].join('\n'), { fontSize: '15px', fill: '#FFD700', fontFamily: 'Arial', align: 'center', lineSpacing: 5 }).setOrigin(0.5).setDepth(11);
+    var close = function() { bg.destroy(); t.destroy(); };
+    bg.on('pointerdown', close);
+    this.input.keyboard.once('keydown', close);
+  }
+});
+
+// =============================================================
+// HUD
+// =============================================================
+var HUD = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function HUD() { Phaser.Scene.call(this, { key: 'HUD', active: false }); },
+
+  create: function() {
+    var S = { fontFamily: 'Arial Black', stroke: '#000', strokeThickness: 3 };
+    this.livT  = this.add.text(8,    6,  '', Object.assign({}, S, { fontSize: '15px', fill: '#fff' }));
+    this.scrT  = this.add.text(8,   25,  '', { fontSize: '11px', fill: '#FFD700', fontFamily: 'Arial' });
+    this.lvlT  = this.add.text(GW/2, 6,  '', Object.assign({}, S, { fontSize: '13px', fill: '#fff' })).setOrigin(0.5, 0);
+    this.coinT = this.add.text(GW-8, 6,  '', Object.assign({}, S, { fontSize: '15px', fill: '#FFD700' })).setOrigin(1, 0);
+    this.add.text(GW/2, 25, 'EQUILIBRIO FISCAL', { fontSize: '9px', fill: '#FFD700', fontFamily: 'Arial' }).setOrigin(0.5, 0);
+    this.fBg  = this.add.rectangle(GW/2,    41, 180, 10, 0x222222).setOrigin(0.5);
+    this.fBar = this.add.rectangle(GW/2-90, 41, 180, 10, 0x00CC00).setOrigin(0, 0.5);
+    this.puT  = this.add.text(8, 44, '', { fontSize: '10px', fill: '#00FFFF', fontFamily: 'Arial' });
+    this.bBg  = this.add.rectangle(GW/2,      GH-20, 400, 14, 0x440000).setOrigin(0.5).setVisible(false);
+    this.bBar = this.add.rectangle(GW/2-200,  GH-20, 400, 14, 0xFF2200).setOrigin(0, 0.5).setVisible(false);
+    this.bNm  = this.add.text(GW/2, GH-35, '', Object.assign({}, S, { fontSize: '12px', fill: '#FF5555' })).setOrigin(0.5).setVisible(false);
+
+    this.game.events.on('hud', function(d) {
+      var gs = window.GS;
+      this.livT.setText('🦁 x' + gs.lives);
+      this.scrT.setText('SCORE: ' + gs.score);
+      this.lvlT.setText(d.lvl || '');
+      this.coinT.setText('$ ' + gs.coins);
+      this.fBar.width = Math.max(0, (gs.fiscal / 100) * 180);
+      this.fBar.fillColor = gs.fiscal > 60 ? 0x00CC00 : gs.fiscal > 30 ? 0xFFCC00 : 0xFF2200;
+      this.puT.setText(d.pu ? '⚡ ' + d.pu : '');
+      if (d.bhp != null) {
+        this.bBg.setVisible(true); this.bBar.setVisible(true); this.bNm.setVisible(true);
+        this.bNm.setText(d.bnm || '');
+        this.bBar.width = Math.max(0, (d.bhp / d.bmx) * 400);
+      } else {
+        this.bBg.setVisible(false); this.bBar.setVisible(false); this.bNm.setVisible(false);
+      }
+    }, this);
+  }
+});
+
+// =============================================================
+// SHOP
+// =============================================================
+var Shop = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function Shop() { Phaser.Scene.call(this, { key: 'Shop' }); },
+
+  create: function() {
+    var gs = window.GS;
+    var scene = this;
+    this.add.rectangle(GW/2, GH/2, GW, GH, 0x050505, 0.96);
+    var espert = this.add.image(155, GH/2+20, 'ally_espert').setScale(0.55);
+    this.tweens.add({ targets: espert, y: espert.y-10, duration: 900, yoyo: true, repeat: -1 });
+    this.add.text(GW/2+45, 14, '🏪 LIBRE MERCADO SHOP', { fontSize: '22px', fill: '#FFD700', fontFamily: 'Arial Black', stroke: '#000', strokeThickness: 4 }).setOrigin(0.5, 0);
+    this.mT = this.add.text(GW/2+45, 50, 'Monedas: $' + gs.coins, { fontSize: '15px', fill: '#00FF00', fontFamily: 'Arial' }).setOrigin(0.5, 0);
+    this.chosen = null;
+
+    var items = [
+      { l: '🔧 Motosierra+', p: 50,  pu: 'chainsaw', d: 'Daño doble 20s' },
+      { l: '📖 Libro Hayek',  p: 75,  pu: 'hayek',    d: 'Invencible 10s' },
+      { l: '🦁 Peluca León',  p: 40,  pu: 'mane',     d: 'Velocidad x2'   },
+      { l: '💰 Dolarito',     p: 60,  pu: 'shield',   d: 'Absorbe 3 golpes' },
+      { l: '❤️ Vida extra',   p: 100, pu: 'life',     d: '+1 vida'         },
+    ];
+    var quotes = ['"¡Excelente inversión!"', '"El mercado tiene razón"', '"¡Comprá antes que se infle!"', '"Puro libre mercado"'];
+
+    for (var i = 0; i < items.length; i++) {
+      (function(it) {
+        var by  = 95 + items.indexOf(it) * 52;
+        var ok  = gs.coins >= it.p;
+        var btn = scene.add.rectangle(GW/2+45, by, 330, 44, ok ? 0x143014 : 0x1a1a1a).setInteractive().setOrigin(0.5);
+        scene.add.text(GW/2+45-145, by, it.l, { fontSize: '14px', fill: ok ? '#FFD700' : '#555', fontFamily: 'Arial Black' }).setOrigin(0, 0.5);
+        scene.add.text(GW/2+45+110, by-9, '$'+it.p, { fontSize: '13px', fill: ok ? '#00FF00' : '#444', fontFamily: 'Arial' }).setOrigin(0.5);
+        scene.add.text(GW/2+45+110, by+9, it.d, { fontSize: '10px', fill: '#888', fontFamily: 'Arial' }).setOrigin(0.5);
+        if (ok) {
+          btn.on('pointerover',  function() { btn.setFillStyle(0x1d551d); });
+          btn.on('pointerout',   function() { btn.setFillStyle(0x143014); });
+          btn.on('pointerdown',  function() {
+            gs.coins -= it.p; scene.chosen = it.pu;
+            scene.mT.setText('Monedas: $' + gs.coins);
+            btn.setFillStyle(0x003300);
+            var qt = scene.add.text(GW/2+45, GH-42, quotes[Math.floor(Math.random()*quotes.length)], { fontSize: '12px', fill: '#fff', fontFamily: 'Arial', fontStyle: 'italic' }).setOrigin(0.5).setDepth(5);
+            scene.time.delayedCall(2200, function() { qt.destroy(); });
+          });
+        }
+      })(items[i]);
+    }
+
+    var cont = this.add.text(GW/2+45, GH-14, '▶ CONTINUAR →', { fontSize: '16px', fill: '#FFD700', fontFamily: 'Arial Black', stroke: '#000', strokeThickness: 3 }).setOrigin(0.5).setInteractive();
+    cont.on('pointerover',  function() { cont.setFill('#FFA500'); });
+    cont.on('pointerout',   function() { cont.setFill('#FFD700'); });
+    cont.on('pointerdown',  function() { scene._go(); });
+    this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.ENTER).on('down', function() { scene._go(); });
+  },
+
+  _go: function() {
+    window.GS.pendingPU = this.chosen;
+    this.scene.stop('HUD');
+    this.scene.start('Game');
+  }
+});
+
+// =============================================================
+// GAME
+// =============================================================
+var Game = new Phaser.Class({
+  Extends: Phaser.Scene,
+  initialize: function Game() { Phaser.Scene.call(this, { key: 'Game' }); },
+
+  create: function() {
+    var gs = window.GS;
+    var lv = LEVELS[gs.level] || LEVELS[0];
+    this.lv = lv;
+
+    // State
+    this.attacking   = false;
+    this.invincible  = false;
+    this.chainsawOn  = false;
+    this.activePU    = null;
+    this.combo       = 0;
+    this.bossSpawned = false;
+    this.allyGiven   = false;
+    this.bossRef     = null;
+    this.bossHP      = lv.hp;
+    this.bossMaxHP   = lv.hp;
+    this.done        = false;
+    this.paused      = false;
+    this.pauseUI     = null;
+    this.bossTimer   = null;
+
+    var WW = 5000;
+    if (gs.pendingPU) { this._applyPU(gs.pendingPU); gs.pendingPU = null; }
+
+    // Physics world
+    this.physics.world.setBounds(0, 0, WW, GH);
+    this.physics.world.gravity.y = GRAV;
+
+    // Background
+    this.add.image(0, 0, lv.bg).setOrigin(0, 0).setDisplaySize(WW, GH);
+
+    // Platforms
+    this.platGrp = this.physics.add.staticGroup();
     this._buildWorld(WW);
 
-    // ── Player ──
-    this.player=this.physics.add.sprite(130,GH-140,'milei');
+    // ── PLAYER ──
+    // NOTE: We do NOT chain physics methods. Each call on its own line.
+    this.player = this.physics.add.sprite(130, GH-140, 'milei');
     this.player.setScale(1.6);
     this.player.setCollideWorldBounds(true);
-    // *** FIX: setMaxVelocity must be called on body, not sprite ***
-    this.player.body.setMaxVelocityX(RUN);
     this.player.setDragX(DRAG);
     this.player.setDepth(10);
-    this.player.facing=1; this.player.isDead=false; this.player.djUsed=false;
-    try{ this.player.play('m_idle'); }catch(e){}
+    // Cap velocity manually in update() — avoids any setMaxVelocityX issues
+    this.maxVX = RUN; // current max, changes with powerup
+    this.player.facing = 1;
+    this.player.isDead = false;
+    this.player.djUsed = false;
+    try { this.player.play('m_idle'); } catch(e) {}
 
-    this.cameras.main.setBounds(0,0,WW,GH);
-    this.cameras.main.startFollow(this.player,true,0.09,0.09);
-    this.cameras.main.setDeadzone(100,50);
+    // Camera
+    this.cameras.main.setBounds(0, 0, WW, GH);
+    this.cameras.main.startFollow(this.player, true, 0.09, 0.09);
+    this.cameras.main.setDeadzone(100, 50);
 
-    // ── Enemy group ──
-    this.enemies=this.physics.add.group();
+    // Groups
+    this.enemies  = this.physics.add.group();
+    this.coinGrp  = this.physics.add.group();
+    this.puGrp    = this.physics.add.group();
+    this.projGrp  = this.physics.add.group();
+
     this._spawnEnemies(WW);
-
-    // ── Coins ──
-    this.coinGrp=this.physics.add.group();
     this._spawnCoins(WW);
-
-    // ── Power-ups ──
-    this.puGrp=this.physics.add.group();
     this._spawnPUs(WW);
 
-    // ── Projectiles ──
-    this.projGrp=this.physics.add.group();
-
-    // ── Colliders / Overlaps ──
+    // Colliders
+    var self = this;
     this.physics.add.collider(this.player,  this.platGrp);
     this.physics.add.collider(this.enemies, this.platGrp);
     this.physics.add.collider(this.coinGrp, this.platGrp);
     this.physics.add.collider(this.puGrp,   this.platGrp);
-    this.physics.add.collider(this.projGrp, this.platGrp, (pr)=>pr.destroy());
-    this.physics.add.overlap(this.player, this.enemies,  this._onEnemy, null, this);
-    this.physics.add.overlap(this.player, this.coinGrp,  this._onCoin,  null, this);
-    this.physics.add.overlap(this.player, this.puGrp,    this._onPU,    null, this);
-    this.physics.add.overlap(this.player, this.projGrp,  (pl,pr)=>{ pr.destroy(); if(!this.invincible)this._damage(); });
+    this.physics.add.collider(this.projGrp, this.platGrp, function(pr) { pr.destroy(); });
+    this.physics.add.overlap(this.player, this.enemies,  function(pl, e)  { self._onEnemy(pl, e);  });
+    this.physics.add.overlap(this.player, this.coinGrp,  function(pl, c)  { self._onCoin(pl, c);   });
+    this.physics.add.overlap(this.player, this.puGrp,    function(pl, pu) { self._onPU(pl, pu);    });
+    this.physics.add.overlap(this.player, this.projGrp,  function(pl, pr) { pr.destroy(); if (!self.invincible) self._damage(); });
 
-    // ── Trigger X positions ──
-    this.allyTrigX=WW/2;
-    this.bossTrigX=WW-900;
+    // Trigger X
+    this.allyTrigX = WW / 2;
+    this.bossTrigX = WW - 900;
 
-    // ── Controls ──
-    const KC=Phaser.Input.Keyboard.KeyCodes;
-    this.kL =this.input.keyboard.addKey(KC.LEFT);
-    this.kR =this.input.keyboard.addKey(KC.RIGHT);
-    this.kD =this.input.keyboard.addKey(KC.DOWN);
-    this.kSh=this.input.keyboard.addKey(KC.SHIFT);
-    this.input.keyboard.addKey(KC.UP).on('down',    ()=>this._jump());
-    this.input.keyboard.addKey(KC.SPACE).on('down', ()=>this._jump());
-    this.input.keyboard.addKey('Z').on('down',       ()=>this._attack());
-    this.input.keyboard.addKey('P').on('down',       ()=>this._pause());
-    this.input.keyboard.addKey(KC.ESC).on('down',   ()=>this._pause());
+    // Controls
+    var KC = Phaser.Input.Keyboard.KeyCodes;
+    this.kL  = this.input.keyboard.addKey(KC.LEFT);
+    this.kR  = this.input.keyboard.addKey(KC.RIGHT);
+    this.kD  = this.input.keyboard.addKey(KC.DOWN);
+    this.kSh = this.input.keyboard.addKey(KC.SHIFT);
+    this.input.keyboard.addKey(KC.UP).on('down',    function() { self._jump(); });
+    this.input.keyboard.addKey(KC.SPACE).on('down', function() { self._jump(); });
+    this.input.keyboard.addKey('Z').on('down',       function() { self._attack(); });
+    this.input.keyboard.addKey('P').on('down',       function() { self._pause(); });
+    this.input.keyboard.addKey(KC.ESC).on('down',   function() { self._pause(); });
 
-    // ── HUD ──
+    // HUD
     this.scene.launch('HUD');
     this._hud();
 
-    // ── Audio ──
-    this.sZ=this.sound.add('snd_zurdos',{volume:.9});
-    this.sV=this.sound.add('snd_viva',{volume:.9});
-    this.sC=this.sound.add('snd_completo',{volume:.9});
+    // Audio
+    this.sZ = this.sound.add('snd_z', { volume: 0.9 });
+    this.sV = this.sound.add('snd_v', { volume: 0.9 });
+    this.sC = this.sound.add('snd_c', { volume: 0.9 });
 
     // Fiscal decay
-    this.time.addEvent({delay:5000,loop:true,callback:()=>{
-      if(!this.done&&!this.paused){gs.fiscal=Math.max(0,gs.fiscal-2);if(gs.fiscal<=0)this._damage();this._hud();}
+    var scene = this;
+    this.time.addEvent({ delay: 5000, loop: true, callback: function() {
+      if (!scene.done && !scene.paused) {
+        gs.fiscal = Math.max(0, gs.fiscal - 2);
+        if (gs.fiscal <= 0) scene._damage();
+        scene._hud();
+      }
     }});
 
-    // Macri random appearance
-    this.time.delayedCall(25000,()=>this._macri());
+    this.time.delayedCall(25000, function() { scene._macri(); });
+    this._banner('MUNDO ' + (gs.level+1) + '\n' + lv.name, '#FFD700', 2500);
+  },
 
-    this._banner('MUNDO '+(gs.level+1)+'\n'+lv.name,'#FFD700',2500);
-  }
-
-  // ──────── WORLD ────────
-  _buildWorld(WW){
-    // Ground
-    this._plat(WW/2,GH-16,WW,32,0x5C3A1E);
-    // Platforms
-    const L=[350,305,150, 600,235,120, 880,315,100, 1150,255,130, 1420,325,110,
+  _buildWorld: function(WW) {
+    this._plat(WW/2, GH-16, WW, 32, 0x5C3A1E);
+    var L = [350,305,150, 600,235,120, 880,315,100, 1150,255,130, 1420,325,110,
              1680,195,140, 1950,275,120, 2220,335,100, 2490,245,130, 2760,305,100,
              3030,215,140, 3300,355,110, 3570,265,120, 3840,235,100, 4110,305,130,
              4380,195,110, 4650,325,120];
-    for(let i=0;i<L.length;i+=3) this._plat(L[i],L[i+1],L[i+2],14,0x7B4F2E);
-  }
+    for (var i = 0; i < L.length; i += 3) this._plat(L[i], L[i+1], L[i+2], 14, 0x7B4F2E);
+  },
 
-  _plat(x,y,w,h,col){
-    // Visual
-    const g=this.add.graphics();
-    g.fillStyle(col,1); g.fillRect(x-w/2,y-h/2,w,h);
-    g.fillStyle(Math.min(col+0x333333,0xFFFFFF),1); g.fillRect(x-w/2,y-h/2,w,4);
-    // Physics
-    const b=this.platGrp.create(x,y,'px');
-    b.setDisplaySize(w,h).setAlpha(0).refreshBody();
-  }
+  _plat: function(x, y, w, h, col) {
+    var g = this.add.graphics();
+    g.fillStyle(col, 1);           g.fillRect(x-w/2, y-h/2, w, h);
+    g.fillStyle(col + 0x222222, 1); g.fillRect(x-w/2, y-h/2, w, 4);
+    var b = this.platGrp.create(x, y, 'px');
+    b.setDisplaySize(w, h).setAlpha(0).refreshBody();
+  },
 
-  // ──────── ENEMIES ────────
-  _spawnEnemies(WW){
-    [420,770,1120,1520,1870,2270,2620,3020,3370,3770,4170,4570].forEach(x=>this._mkE('cuca_k',x,GH-78,1,'ck_walk',62));
-    [1080,2380,3680].forEach(x=>this._mkE('cuca_arm',x,GH-78,2,'ca_walk',45));
-    [1680,3180,4480].forEach(x=>this._mkE('sind',x,GH-83,3,'si_walk',32));
-  }
+  _spawnEnemies: function(WW) {
+    var ckPos = [420,770,1120,1520,1870,2270,2620,3020,3370,3770,4170,4570];
+    for (var i=0; i<ckPos.length; i++) this._mkE('cuca_k', ckPos[i], GH-78, 1, 'ck_walk', 62);
+    var caPos = [1080,2380,3680];
+    for (var i=0; i<caPos.length; i++) this._mkE('cuca_arm', caPos[i], GH-78, 2, 'ca_walk', 45);
+    var siPos = [1680,3180,4480];
+    for (var i=0; i<siPos.length; i++) this._mkE('sind', siPos[i], GH-83, 3, 'si_walk', 32);
+  },
 
-  _mkE(tex,x,y,hp,anim,spd){
-    const e=this.physics.add.sprite(x,y,tex);
-    e.setScale(tex==='sind'?1.35:1.5).setCollideWorldBounds(true).setVelocityX(-spd).setDepth(5);
-    e.hp=hp; e.spd=spd; e.tex=tex; e.isDead=false; e._dir=-1;
-    try{e.play(anim);}catch(err){}
+  _mkE: function(tex, x, y, hp, anim, spd) {
+    var e = this.physics.add.sprite(x, y, tex);
+    e.setScale(tex === 'sind' ? 1.35 : 1.5);
+    e.setCollideWorldBounds(true);
+    e.setVelocityX(-spd);
+    e.setDepth(5);
+    e.hp = hp; e.spd = spd; e.tex = tex; e.isDead = false; e._dir = -1;
+    try { e.play(anim); } catch(err) {}
     this.enemies.add(e);
-  }
+  },
 
-  // ──────── COINS / PUS ────────
-  _spawnCoins(WW){
-    for(let x=300;x<WW-300;x+=165){
-      if(Math.random()>.4){
-        const c=this.physics.add.sprite(x,GH-148-Math.random()*75,'pups').setFrame(0).setScale(1.1);
-        c.body.setGravityY(-GRAV+120);
+  _spawnCoins: function(WW) {
+    for (var x = 300; x < WW-300; x += 165) {
+      if (Math.random() > 0.4) {
+        var c = this.physics.add.sprite(x, GH-148 - Math.random()*75, 'pups');
+        c.setFrame(0).setScale(1.1);
+        c.body.setGravityY(-GRAV + 120);
         this.coinGrp.add(c);
       }
     }
-  }
+  },
 
-  _spawnPUs(WW){
-    const t=['dollar','chainsaw','shield','hayek','mane'];
-    [700,1600,2500,3400,4300].forEach((x,i)=>{
-      const pu=this.physics.add.sprite(x,GH-200,'pups');
-      pu.setScale(1.7).setBounce(.35);
-      pu.puType=t[i%5];
-      try{pu.play('pu_'+pu.puType);}catch(e){}
+  _spawnPUs: function(WW) {
+    var types = ['dollar','chainsaw','shield','hayek','mane'];
+    var xArr  = [700, 1600, 2500, 3400, 4300];
+    for (var i = 0; i < xArr.length; i++) {
+      var pu = this.physics.add.sprite(xArr[i], GH-200, 'pups');
+      pu.setScale(1.7).setBounce(0.35);
+      pu.puType = types[i % 5];
+      try { pu.play('pu_' + pu.puType); } catch(e) {}
       this.puGrp.add(pu);
-    });
-  }
-
-  // ──────── PLAYER ACTIONS ────────
-  _jump(){
-    if(this.paused||this.player.isDead) return;
-    const onG=this.player.body.blocked.down;
-    if(onG){
-      this.player.setVelocityY(JUMP_V);
-      this.player.djUsed=false;
-    } else if(!this.player.djUsed){
-      this.player.setVelocityY(DJUMP_V);
-      this.player.djUsed=true;
-      this.cameras.main.shake(65,0.004);
-      this._float(this.player.x,this.player.y+20,'✨','#FFD700',380);
     }
-  }
+  },
 
-  _attack(){
-    if(this.paused||this.attacking||this.player.isDead) return;
-    this.attacking=true;
-    try{this.player.play('m_atk',true);}catch(e){}
-    if(this.chainsawOn&&!this.sZ.isPlaying) this.sZ.play();
+  _jump: function() {
+    if (this.paused || this.player.isDead) return;
+    var onG = this.player.body.blocked.down;
+    if (onG) {
+      this.player.setVelocityY(JUMP_V);
+      this.player.djUsed = false;
+    } else if (!this.player.djUsed) {
+      this.player.setVelocityY(DJUMP);
+      this.player.djUsed = true;
+      this.cameras.main.shake(65, 0.004);
+      this._float(this.player.x, this.player.y+20, '✨', '#FFD700', 380);
+    }
+  },
 
-    const dir=this.player.facing;
-    const hr=new Phaser.Geom.Rectangle(this.player.x+dir*30-40,this.player.y-42,80,84);
+  _attack: function() {
+    if (this.paused || this.attacking || this.player.isDead) return;
+    this.attacking = true;
+    try { this.player.play('m_atk', true); } catch(e) {}
+    if (this.chainsawOn && !this.sZ.isPlaying) this.sZ.play();
 
-    this.enemies.getChildren().forEach(e=>{
-      if(e.active&&!e.isDead&&Phaser.Geom.Intersects.RectangleToRectangle(hr,e.getBounds()))
-        this._hitE(e);
+    var dir = this.player.facing;
+    var hr  = new Phaser.Geom.Rectangle(this.player.x + dir*30 - 40, this.player.y - 42, 80, 84);
+    var self = this;
+
+    this.enemies.getChildren().forEach(function(e) {
+      if (e.active && !e.isDead && Phaser.Geom.Intersects.RectangleToRectangle(hr, e.getBounds()))
+        self._hitE(e);
     });
-    if(this.bossRef&&this.bossRef.active&&!this.bossRef.isDead&&
-       Phaser.Geom.Intersects.RectangleToRectangle(hr,this.bossRef.getBounds()))
+    if (this.bossRef && this.bossRef.active && !this.bossRef.isDead &&
+        Phaser.Geom.Intersects.RectangleToRectangle(hr, this.bossRef.getBounds()))
       this._hitBoss();
 
-    const fl=this.add.rectangle(this.player.x+dir*50,this.player.y,84,70,0xFFFF00,0.2).setDepth(20);
-    this.time.delayedCall(80,()=>fl.destroy());
-    this.time.delayedCall(350,()=>{
-      this.attacking=false;
-      if(!this.player.isDead) try{this.player.play('m_idle',true);}catch(e){}
+    var fl = this.add.rectangle(this.player.x + dir*50, this.player.y, 84, 70, 0xFFFF00, 0.2).setDepth(20);
+    this.time.delayedCall(80, function() { fl.destroy(); });
+    this.time.delayedCall(350, function() {
+      self.attacking = false;
+      if (!self.player.isDead) try { self.player.play('m_idle', true); } catch(e) {}
     });
-  }
+  },
 
-  // ──────── ENEMY HIT / KILL ────────
-  _hitE(e){
-    const dmg=this.chainsawOn?2:1;
-    e.hp-=dmg;
-    this.cameras.main.shake(85,0.005);
-    this.tweens.add({targets:e,tint:0xFF0000,duration:80,yoyo:true});
-    this._float(e.x,e.y-20,'-'+dmg,'#F44');
-    if(e.hp<=0) this._killE(e);
-    else if(e.tex==='cuca_arm'){
-      try{e.play('ca_hit',true);}catch(err){}
-      this.time.delayedCall(400,()=>{ if(e.active)try{e.play('ca_walk',true);}catch(err){} });
+  _hitE: function(e) {
+    var dmg = this.chainsawOn ? 2 : 1;
+    e.hp -= dmg;
+    this.cameras.main.shake(85, 0.005);
+    this.tweens.add({ targets: e, tint: 0xFF0000, duration: 80, yoyo: true });
+    this._float(e.x, e.y-20, '-' + dmg, '#FF4444');
+    if (e.hp <= 0) this._killE(e);
+    else if (e.tex === 'cuca_arm') {
+      try { e.play('ca_hit', true); } catch(err) {}
+      var self = this;
+      this.time.delayedCall(400, function() { if (e.active) try { e.play('ca_walk', true); } catch(err) {} });
     }
-  }
+  },
 
-  _killE(e){
-    if(e.isDead) return;
-    e.isDead=true;
-    e.setVelocity(0,-105).setDepth(3);
-    const da={cuca_k:'ck_die',cuca_arm:'ca_die',sind:'si_die'}[e.tex]||'ck_die';
-    try{e.play(da,true);}catch(err){}
-    window.GS.coins+=5; window.GS.score+=100; window.GS.fiscal=Math.min(100,window.GS.fiscal+3);
-    this._float(e.x,e.y-20,'+$5','#FFD700');
+  _killE: function(e) {
+    if (e.isDead) return;
+    e.isDead = true;
+    e.setVelocity(0, -105).setDepth(3);
+    var da = { cuca_k: 'ck_die', cuca_arm: 'ca_die', sind: 'si_die' }[e.tex] || 'ck_die';
+    try { e.play(da, true); } catch(err) {}
+    window.GS.coins  += 5;
+    window.GS.score  += 100;
+    window.GS.fiscal  = Math.min(100, window.GS.fiscal + 3);
+    this._float(e.x, e.y-20, '+$5', '#FFD700');
     this.combo++;
-    if(this.combo>=5){
-      this._banner('¡COMBO x5!\n¡AFUERA!','#FFD700',1500);
-      if(!this.sV.isPlaying) this.sV.play();
-      this.combo=0;
+    if (this.combo >= 5) {
+      this._banner('¡COMBO x5!\n¡AFUERA!', '#FFD700', 1500);
+      if (!this.sV.isPlaying) this.sV.play();
+      this.combo = 0;
     }
-    this.time.delayedCall(750,()=>{ if(e.active)e.destroy(); });
+    var self = this;
+    this.time.delayedCall(750, function() { if (e.active) e.destroy(); });
     this._hud();
-  }
+  },
 
-  // ──────── OVERLAPS ────────
-  _onEnemy(pl,e){
-    if(this.invincible||pl.isDead||e.isDead) return;
-    if(pl.body.velocity.y>60&&pl.y<e.y-18){ this._hitE(e); pl.setVelocityY(JUMP_V*.45); }
-    else this._damage();
-  }
-  _onCoin(pl,c){
-    c.destroy(); window.GS.coins++; window.GS.score+=10; window.GS.fiscal=Math.min(100,window.GS.fiscal+1);
-    this._float(c.x,c.y,'+$1','#FFD700',500); this._hud();
-  }
-  _onPU(pl,pu){ const t=pu.puType; pu.destroy(); this.cameras.main.flash(200,255,210,0); this._applyPU(t); }
+  _onEnemy: function(pl, e) {
+    if (this.invincible || pl.isDead || e.isDead) return;
+    if (pl.body.velocity.y > 60 && pl.y < e.y - 18) {
+      this._hitE(e);
+      pl.setVelocityY(JUMP_V * 0.45);
+    } else {
+      this._damage();
+    }
+  },
 
-  // ──────── POWER-UPS ────────
-  _applyPU(type){
-    const L={dollar:'Motosierra',chainsaw:'Motosierra MAX',shield:'Escudo $',hayek:'Modo Hayek',mane:'Peluca León',life:'Vida Extra'};
-    this.activePU=L[type]||type;
-    switch(type){
-      case 'dollar': case 'chainsaw':
-        this.chainsawOn=true;
-        if(!this.sZ.isPlaying) this.sZ.play();
-        this._banner('¡MOTOSIERRA!\n¡Zurdos tiemblen!','#FFD700',2000);
-        this.time.delayedCall(type==='chainsaw'?20000:15000,()=>{this.chainsawOn=false;this.activePU=null;this._hud();});
+  _onCoin: function(pl, c) {
+    c.destroy();
+    window.GS.coins++;
+    window.GS.score  += 10;
+    window.GS.fiscal  = Math.min(100, window.GS.fiscal + 1);
+    this._float(c.x, c.y, '+$1', '#FFD700', 500);
+    this._hud();
+  },
+
+  _onPU: function(pl, pu) {
+    var t = pu.puType;
+    pu.destroy();
+    this.cameras.main.flash(200, 255, 210, 0);
+    this._applyPU(t);
+  },
+
+  _applyPU: function(type) {
+    var L = { dollar:'Motosierra', chainsaw:'Motosierra MAX', shield:'Escudo $', hayek:'Modo Hayek', mane:'Peluca León', life:'Vida Extra' };
+    this.activePU = L[type] || type;
+    var self = this;
+    switch (type) {
+      case 'dollar':
+      case 'chainsaw':
+        this.chainsawOn = true;
+        if (!this.sZ.isPlaying) this.sZ.play();
+        this._banner('¡MOTOSIERRA!\n¡Zurdos tiemblen!', '#FFD700', 2000);
+        this.time.delayedCall(type === 'chainsaw' ? 20000 : 15000, function() { self.chainsawOn = false; self.activePU = null; self._hud(); });
         break;
       case 'shield':
-        this.invincible=true;
-        this._banner('¡DOLARITO ESCUDO!\n¡INVENCIBLE!','#0FF',2000);
-        this.time.delayedCall(15000,()=>{this.invincible=false;this.activePU=null;this._hud();});
+        this.invincible = true;
+        this._banner('¡DOLARITO ESCUDO!\n¡INVENCIBLE!', '#00FFFF', 2000);
+        this.time.delayedCall(15000, function() { self.invincible = false; self.activePU = null; self._hud(); });
         break;
       case 'hayek':
-        this.invincible=true;
-        this._banner('¡LIBRO DE HAYEK!\n¡LIBERTAD!','#FFF',2000);
-        this.time.delayedCall(10000,()=>{this.invincible=false;this.activePU=null;this._hud();});
+        this.invincible = true;
+        this._banner('¡LIBRO DE HAYEK!\n¡LIBERTAD!', '#FFF', 2000);
+        this.time.delayedCall(10000, function() { self.invincible = false; self.activePU = null; self._hud(); });
         break;
       case 'mane':
-        // *** FIX: use body.maxVelocity.x not setMaxVelocityX on sprite ***
-        this.player.body.maxVelocity.x=RUN*1.9;
-        this._banner('¡PELUCA DE LEÓN!\n¡VELOCIDAD MAX!','#DAA520',2000);
-        this.time.delayedCall(10000,()=>{this.player.body.maxVelocity.x=RUN;this.activePU=null;this._hud();});
+        this.maxVX = RUN * 1.9;
+        this._banner('¡PELUCA DE LEÓN!\n¡VELOCIDAD MAX!', '#DAA520', 2000);
+        this.time.delayedCall(10000, function() { self.maxVX = RUN; self.activePU = null; self._hud(); });
         break;
       case 'life':
         window.GS.lives++;
-        this._banner('¡VIDA EXTRA!','#F9F',1500);
+        this._banner('¡VIDA EXTRA!', '#FF69B4', 1500);
         break;
     }
     this._hud();
-  }
+  },
 
-  // ──────── ALLY ────────
-  _spawnAlly(){
-    const cfg=this.lv;
-    const ax=this.player.x+420;
-    const ally=this.add.image(ax,GH-155,cfg.ally).setScale(0.62).setAlpha(0).setDepth(8);
-    this.tweens.add({targets:ally,alpha:1,duration:800});
-    this.tweens.add({targets:ally,y:ally.y-12,duration:900,yoyo:true,repeat:-1,ease:'Sine.easeInOut',delay:800});
-    const lbl=this.add.text(ax,GH-255,'✨ '+cfg.allyName+' ✨\n¡Tócalo!',{fontSize:'12px',fill:'#FFD700',fontFamily:'Arial',align:'center',backgroundColor:'#000000AA',padding:{x:5,y:2}}).setOrigin(0.5).setDepth(9);
+  _spawnAlly: function() {
+    var cfg  = this.lv;
+    var ax   = this.player.x + 420;
+    var ally = this.add.image(ax, GH-155, cfg.ally).setScale(0.62).setAlpha(0).setDepth(8);
+    var self = this;
+    this.tweens.add({ targets: ally, alpha: 1, duration: 800 });
+    this.tweens.add({ targets: ally, y: ally.y-12, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut', delay: 800 });
+    var lbl = this.add.text(ax, GH-255, '✨ ' + cfg.an + ' ✨\n¡Tócalo!', { fontSize:'12px', fill:'#FFD700', fontFamily:'Arial', align:'center', backgroundColor:'#000000AA', padding:{x:5,y:2} }).setOrigin(0.5).setDepth(9);
 
     this.physics.world.enable(ally);
-    ally.body.allowGravity=false;
-    const ov=this.physics.add.overlap(this.player,ally,()=>{
-      this.physics.world.removeCollider(ov); lbl.destroy();
-      this.cameras.main.flash(300,255,215,0);
-      const M={'ally_alberdi':'shield','ally_cavallo':'dollar','ally_sarmiento':'hayek','ally_nisman':'chainsaw','ally_adam':'dollar','ally_sanmartin':'chainsaw','ally_friedman':'shield','ally_hayek':'chainsaw'};
-      this._applyPU(M[cfg.ally]||'shield');
-      const Q={'ally_alberdi':'"La Constitución es el escudo"','ally_nisman':'"La verdad sale a la luz"','ally_cavallo':'"Un peso, un dólar"','ally_sarmiento':'"¡Educar al soberano!"','ally_adam':'"The invisible hand"','ally_sanmartin':'"Seamos libres"','ally_friedman':'"No free lunch"','ally_hayek':'"The road to serfdom"'};
-      this._banner(Q[cfg.ally]||'¡Poder!','#FFD700',2500);
-      this.tweens.add({targets:ally,alpha:0,duration:600,onComplete:()=>ally.destroy()});
-    },null,this);
-    this.time.delayedCall(9000,()=>{ if(ally.active){lbl.destroy();this.tweens.add({targets:ally,alpha:0,duration:700,onComplete:()=>ally.destroy()});} });
-  }
-
-  // ──────── BOSS ────────
-  _launchBoss(){
-    this.cameras.main.shake(450,0.016);
-    this._banner('⚠ BOSS ⚠\n'+this.lv.bossName,'#F00',3000);
-    this.time.delayedCall(2200,()=>{
-      const bx=this.cameras.main.scrollX+GW-80;
-      const bk=this.lv.bossKey, ba=this.lv.ba;
-      this.bossRef=this.physics.add.sprite(bx,GH-145,bk);
-      this.bossRef.setScale(bk==='boss_fmi'?1.7:2.1).setCollideWorldBounds(true).setDepth(8);
-      this.bossRef.isDead=false; this.bossRef.hp=this.bossHP;
-      try{this.bossRef.play(ba+'_idle',true);}catch(e){}
-      this.physics.add.collider(this.bossRef,this.platGrp);
-      this.physics.add.overlap(this.player,this.bossRef,()=>{ if(!this.invincible&&!this.bossRef.isDead&&!this.player.isDead)this._damage(); },null,this);
-      this.bossTimer=this.time.addEvent({delay:1700,loop:true,callback:()=>this._bossAI()});
-      this._hud();
+    ally.body.allowGravity = false;
+    var ov = this.physics.add.overlap(this.player, ally, function() {
+      self.physics.world.removeCollider(ov);
+      lbl.destroy();
+      self.cameras.main.flash(300, 255, 215, 0);
+      var M = { ally_alberdi:'shield', ally_cavallo:'dollar', ally_sarmiento:'hayek', ally_nisman:'chainsaw', ally_adam:'dollar', ally_sanmartin:'chainsaw', ally_friedman:'shield', ally_hayek:'chainsaw' };
+      self._applyPU(M[cfg.ally] || 'shield');
+      var Q = { ally_alberdi:'"La Constitución es el escudo"', ally_nisman:'"La verdad sale a la luz"', ally_cavallo:'"Un peso, un dólar"', ally_sarmiento:'"¡Educar al soberano!"', ally_adam:'"The invisible hand"', ally_sanmartin:'"Seamos libres"', ally_friedman:'"No free lunch"', ally_hayek:'"The road to serfdom"' };
+      self._banner(Q[cfg.ally] || '¡Poder!', '#FFD700', 2500);
+      self.tweens.add({ targets: ally, alpha: 0, duration: 600, onComplete: function() { ally.destroy(); } });
     });
-  }
-
-  _bossAI(){
-    const b=this.bossRef, ba=this.lv.ba;
-    if(!b||!b.active||b.isDead||this.player.isDead) return;
-    const dx=this.player.x-b.x, spd=62+window.GS.level*7;
-    b.setVelocityX(dx>0?spd:-spd); b.setFlipX(dx<0);
-    const r=Math.random();
-    if(r<.28&&b.body.blocked.down) b.setVelocityY(JUMP_V*.7);
-    else if(r<.55){
-      try{b.play(ba+'_atk',true);}catch(e){}
-      this.time.delayedCall(280,()=>{ if(b&&b.active) this._proj(b.x+(dx>0?50:-50),b.y,dx>0?210:-210,-85); });
-    } else if(r<.72&&Math.abs(dx)<380) b.setVelocityX(dx>0?spd*2.2:-spd*2.2);
-    else{ this._mkE('cuca_k',b.x+Phaser.Math.Between(-200,200),GH-78,1,'ck_walk',65); this._float(b.x,b.y-60,'¡REFUERZOS!','#F00'); }
-    this.time.delayedCall(550,()=>{ if(b&&b.active&&!b.isDead)try{b.play(ba+'_idle',true);}catch(e){} });
-  }
-
-  _proj(x,y,vx,vy){
-    const pr=this.add.rectangle(x,y,22,12,0xFF2200).setDepth(12);
-    this.physics.add.existing(pr);
-    pr.body.setVelocity(vx,vy);
-    this.projGrp.add(pr);
-    this.time.delayedCall(3500,()=>{ if(pr.active)pr.destroy(); });
-  }
-
-  _hitBoss(){
-    if(!this.bossRef||this.bossRef.isDead) return;
-    const dmg=this.chainsawOn?18:10;
-    this.bossRef.hp-=dmg; this.bossHP=this.bossRef.hp;
-    this.cameras.main.shake(150,0.01);
-    this.tweens.add({targets:this.bossRef,tint:0xFF0000,duration:110,yoyo:true});
-    this._float(this.bossRef.x,this.bossRef.y-40,'-'+dmg,'#F00');
-    window.GS.score+=50;
-    if(this.bossRef.hp<=0) this._bossDie();
-    this._hud();
-  }
-
-  _bossDie(){
-    if(this.bossRef.isDead) return;
-    this.bossRef.isDead=true;
-    if(this.bossTimer) this.bossTimer.remove();
-    try{this.bossRef.play(this.lv.ba+'_die',true);}catch(e){}
-    this.cameras.main.shake(650,0.02);
-    const Q={del_cano:'"¡El pueblo unido!"',massa:'"Yo siempre estuve en contra"',kicillof:'"La culpa es de Milei"',cristina:'"¡Me persiguen!"',larreta:'"Esto es lo que siempre quise"',villarruel:'"Sirvo a la patria"',moreno:'"¡TE VOY A ROMPER!"',boss_fmi:'"¡VIVA LA CASTA!"'};
-    this._banner(Q[this.lv.bossKey]||'"¡Derrotado!"','#FF6600',3000);
-    this.time.delayedCall(3200,()=>{
-      this.done=true; this.bossHP=0;
-      const gs=window.GS;
-      gs.score+=1000; gs.fiscal=Math.min(100,gs.fiscal+20); gs.coins+=20;
-      if(gs.level>=LEVELS.length-1){
-        this._banner('🏆 ¡JUEGO COMPLETADO!\n¡VIVA LA LIBERTAD CARAJO!','#FFD700',6000);
-        this.sC.play();
-        this.time.delayedCall(7000,()=>{ this.scene.stop('HUD'); this.scene.start('Title'); });
-      } else {
-        this._banner('¡NIVEL COMPLETADO!\n¡LIBERTAD!','#FFD700',2500);
-        if(!this.sV.isPlaying) this.sV.play();
-        this.time.delayedCall(3200,()=>{ gs.level++; this.scene.stop('HUD'); this.scene.start('Shop'); });
+    this.time.delayedCall(9000, function() {
+      if (ally.active) {
+        lbl.destroy();
+        self.tweens.add({ targets: ally, alpha: 0, duration: 700, onComplete: function() { ally.destroy(); } });
       }
     });
-  }
+  },
 
-  // ──────── DAMAGE / DEATH ────────
-  _damage(){
-    if(this.invincible||this.player.isDead) return;
-    window.GS.lives--; this.invincible=true;
-    try{this.player.play('m_hit',true);}catch(e){}
-    this.cameras.main.shake(200,0.015);
-    this.tweens.add({targets:this.player,alpha:.3,duration:80,yoyo:true,repeat:13,onComplete:()=>{
-      this.invincible=false; this.player.alpha=1;
-      if(!this.player.isDead) try{this.player.play('m_idle',true);}catch(e){}
-    }});
-    if(window.GS.lives<=0) this._die();
-    this._hud();
-  }
-
-  _die(){
-    if(this.player.isDead) return;
-    this.player.isDead=true;
-    try{this.player.play('m_die',true);}catch(e){}
-    this.player.setVelocity(0,-255);
-    this._banner('GAME OVER\n"El camino es duro pero vale la pena"','#F00',4000);
-    this.time.delayedCall(5000,()=>{
-      window.GS={lives:3,coins:0,fiscal:50,level:0,score:0,pendingPU:null};
-      this.scene.stop('HUD'); this.scene.start('Title');
-    });
-  }
-
-  // ──────── MACRI GATO ────────
-  _macri(){
-    const mx=this.player.x+480;
-    const mg=this.add.sprite(mx,GH-72,'macri').setScale(1.5).setDepth(9);
-    try{mg.play('mg_idle');}catch(e){}
-    const mt=this.add.text(mx,GH-132,'¡MIAU!',{fontSize:'16px',fill:'#FFD700',fontFamily:'Arial Black',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(10);
-    this.physics.world.enable(mg); mg.body.allowGravity=false;
-    const ov=this.physics.add.overlap(this.player,mg,()=>{
-      this.physics.world.removeCollider(ov); mt.destroy();
-      const good=Math.random()>.45;
-      if(good){
-        try{mg.play('mg_good',true);}catch(e){}
-        window.GS.coins+=20; window.GS.fiscal=Math.min(100,window.GS.fiscal+20);
-        this.invincible=true; this.time.delayedCall(12000,()=>this.invincible=false);
-        this._banner('¡MACRI PREMIO!\n+20 monedas + escudo','#0F0',2000);
-      } else {
-        try{mg.play('mg_bad',true);}catch(e){}
-        window.GS.coins=Math.max(0,window.GS.coins-10);
-        window.GS.fiscal=Math.max(0,window.GS.fiscal-15);
-        this._banner('¡SORPRESA MACRI!\n-10 monedas\n"No sabíamos lo que había"','#FF6600',2000);
-      }
-      this.time.delayedCall(1500,()=>{
-        try{mg.play('mg_exit',true);}catch(e){}
-        this.tweens.add({targets:mg,x:mg.x+280,alpha:0,duration:900,onComplete:()=>mg.destroy()});
+  _launchBoss: function() {
+    var self = this;
+    this.cameras.main.shake(450, 0.016);
+    this._banner('⚠ BOSS ⚠\n' + this.lv.bn, '#FF0000', 3000);
+    this.time.delayedCall(2200, function() {
+      var bx = self.cameras.main.scrollX + GW - 80;
+      var bk = self.lv.bk;
+      var ba = self.lv.ba;
+      self.bossRef = self.physics.add.sprite(bx, GH-145, bk);
+      self.bossRef.setScale(bk === 'boss_fmi' ? 1.7 : 2.1);
+      self.bossRef.setCollideWorldBounds(true);
+      self.bossRef.setDepth(8);
+      self.bossRef.isDead = false;
+      self.bossRef.hp     = self.bossHP;
+      try { self.bossRef.play(ba + '_idle', true); } catch(e) {}
+      self.physics.add.collider(self.bossRef, self.platGrp);
+      self.physics.add.overlap(self.player, self.bossRef, function() {
+        if (!self.invincible && !self.bossRef.isDead && !self.player.isDead) self._damage();
       });
-      this._hud();
-    },null,this);
-    this.time.delayedCall(9000,()=>{ if(mg.active){mt.destroy();this.tweens.add({targets:mg,alpha:0,duration:700,onComplete:()=>mg.destroy()});} });
-  }
+      self.bossTimer = self.time.addEvent({ delay: 1700, loop: true, callback: function() { self._bossAI(); } });
+      self._hud();
+    });
+  },
 
-  // ──────── PAUSE ────────
-  _pause(){
-    this.paused=!this.paused;
-    if(this.paused){
+  _bossAI: function() {
+    var b = this.bossRef, ba = this.lv.ba;
+    if (!b || !b.active || b.isDead || this.player.isDead) return;
+    var dx  = this.player.x - b.x;
+    var spd = 62 + window.GS.level * 7;
+    var self = this;
+    b.setVelocityX(dx > 0 ? spd : -spd);
+    b.setFlipX(dx < 0);
+    var r = Math.random();
+    if (r < 0.28 && b.body.blocked.down) {
+      b.setVelocityY(JUMP_V * 0.7);
+    } else if (r < 0.55) {
+      try { b.play(ba + '_atk', true); } catch(e) {}
+      this.time.delayedCall(280, function() { if (b && b.active) self._proj(b.x + (dx>0?50:-50), b.y, dx>0?210:-210, -85); });
+    } else if (r < 0.72 && Math.abs(dx) < 380) {
+      b.setVelocityX(dx > 0 ? spd*2.2 : -spd*2.2);
+    } else {
+      this._mkE('cuca_k', b.x + Phaser.Math.Between(-200, 200), GH-78, 1, 'ck_walk', 65);
+      this._float(b.x, b.y-60, '¡REFUERZOS!', '#FF0000');
+    }
+    this.time.delayedCall(550, function() {
+      if (b && b.active && !b.isDead) try { b.play(ba + '_idle', true); } catch(e) {}
+    });
+  },
+
+  _proj: function(x, y, vx, vy) {
+    var pr = this.add.rectangle(x, y, 22, 12, 0xFF2200).setDepth(12);
+    this.physics.add.existing(pr);
+    pr.body.setVelocity(vx, vy);
+    this.projGrp.add(pr);
+    this.time.delayedCall(3500, function() { if (pr.active) pr.destroy(); });
+  },
+
+  _hitBoss: function() {
+    if (!this.bossRef || this.bossRef.isDead) return;
+    var dmg = this.chainsawOn ? 18 : 10;
+    this.bossRef.hp -= dmg;
+    this.bossHP      = this.bossRef.hp;
+    this.cameras.main.shake(150, 0.01);
+    this.tweens.add({ targets: this.bossRef, tint: 0xFF0000, duration: 110, yoyo: true });
+    this._float(this.bossRef.x, this.bossRef.y-40, '-' + dmg, '#FF0000');
+    window.GS.score += 50;
+    if (this.bossRef.hp <= 0) this._bossDie();
+    this._hud();
+  },
+
+  _bossDie: function() {
+    if (this.bossRef.isDead) return;
+    this.bossRef.isDead = true;
+    if (this.bossTimer) this.bossTimer.remove();
+    try { this.bossRef.play(this.lv.ba + '_die', true); } catch(e) {}
+    this.cameras.main.shake(650, 0.02);
+    var Q = { del_cano:'"¡El pueblo unido!"', massa:'"Yo siempre estuve en contra"', kicillof:'"La culpa es de Milei"', cristina:'"¡Me persiguen!"', larreta:'"Esto es lo que siempre quise"', villarruel:'"Sirvo a la patria"', moreno:'"¡TE VOY A ROMPER!"', boss_fmi:'"¡VIVA LA CASTA!"' };
+    this._banner(Q[this.lv.bk] || '"¡Derrotado!"', '#FF6600', 3000);
+    var self = this;
+    this.time.delayedCall(3200, function() {
+      self.done = true; self.bossHP = 0;
+      var gs = window.GS;
+      gs.score  += 1000;
+      gs.fiscal  = Math.min(100, gs.fiscal + 20);
+      gs.coins  += 20;
+      if (gs.level >= LEVELS.length - 1) {
+        self._banner('🏆 ¡JUEGO COMPLETADO!\n¡VIVA LA LIBERTAD CARAJO!', '#FFD700', 6000);
+        self.sC.play();
+        self.time.delayedCall(7000, function() { self.scene.stop('HUD'); self.scene.start('Title'); });
+      } else {
+        self._banner('¡NIVEL COMPLETADO!\n¡LIBERTAD!', '#FFD700', 2500);
+        if (!self.sV.isPlaying) self.sV.play();
+        self.time.delayedCall(3200, function() { gs.level++; self.scene.stop('HUD'); self.scene.start('Shop'); });
+      }
+    });
+  },
+
+  _damage: function() {
+    if (this.invincible || this.player.isDead) return;
+    window.GS.lives--;
+    this.invincible = true;
+    try { this.player.play('m_hit', true); } catch(e) {}
+    this.cameras.main.shake(200, 0.015);
+    var self = this;
+    this.tweens.add({ targets: this.player, alpha: 0.3, duration: 80, yoyo: true, repeat: 13, onComplete: function() {
+      self.invincible = false;
+      self.player.alpha = 1;
+      if (!self.player.isDead) try { self.player.play('m_idle', true); } catch(e) {}
+    }});
+    if (window.GS.lives <= 0) this._die();
+    this._hud();
+  },
+
+  _die: function() {
+    if (this.player.isDead) return;
+    this.player.isDead = true;
+    try { this.player.play('m_die', true); } catch(e) {}
+    this.player.setVelocity(0, -255);
+    this._banner('GAME OVER\n"El camino es duro pero vale la pena"', '#FF0000', 4000);
+    var self = this;
+    this.time.delayedCall(5000, function() {
+      window.GS = { lives:3, coins:0, fiscal:50, level:0, score:0, pendingPU:null };
+      self.scene.stop('HUD');
+      self.scene.start('Title');
+    });
+  },
+
+  _macri: function() {
+    var self = this;
+    var mx   = this.player.x + 480;
+    var mg   = this.add.sprite(mx, GH-72, 'macri').setScale(1.5).setDepth(9);
+    try { mg.play('mg_idle'); } catch(e) {}
+    var mt = this.add.text(mx, GH-132, '¡MIAU!', { fontSize:'16px', fill:'#FFD700', fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(0.5).setDepth(10);
+    this.physics.world.enable(mg);
+    mg.body.allowGravity = false;
+    var ov = this.physics.add.overlap(this.player, mg, function() {
+      self.physics.world.removeCollider(ov);
+      mt.destroy();
+      var good = Math.random() > 0.45;
+      if (good) {
+        try { mg.play('mg_good', true); } catch(e) {}
+        window.GS.coins  += 20;
+        window.GS.fiscal  = Math.min(100, window.GS.fiscal + 20);
+        self.invincible   = true;
+        self.time.delayedCall(12000, function() { self.invincible = false; });
+        self._banner('¡MACRI PREMIO!\n+20 monedas + escudo', '#00FF00', 2000);
+      } else {
+        try { mg.play('mg_bad', true); } catch(e) {}
+        window.GS.coins  = Math.max(0, window.GS.coins - 10);
+        window.GS.fiscal = Math.max(0, window.GS.fiscal - 15);
+        self._banner('¡SORPRESA MACRI!\n-10 monedas\n"No sabíamos lo que había"', '#FF6600', 2000);
+      }
+      self.time.delayedCall(1500, function() {
+        try { mg.play('mg_exit', true); } catch(e) {}
+        self.tweens.add({ targets: mg, x: mg.x+280, alpha: 0, duration: 900, onComplete: function() { mg.destroy(); } });
+      });
+      self._hud();
+    });
+    this.time.delayedCall(9000, function() {
+      if (mg.active) {
+        mt.destroy();
+        self.tweens.add({ targets: mg, alpha: 0, duration: 700, onComplete: function() { mg.destroy(); } });
+      }
+    });
+  },
+
+  _pause: function() {
+    this.paused = !this.paused;
+    var sx = this.cameras.main.scrollX;
+    if (this.paused) {
       this.physics.pause();
-      const sx=this.cameras.main.scrollX;
-      const bg=this.add.rectangle(GW/2+sx,GH/2,400,190,0x000,0.92).setDepth(100);
-      const t1=this.add.text(GW/2+sx,GH/2-50,'⏸ PAUSADO',{fontSize:'28px',fill:'#FFD700',fontFamily:'Arial Black',stroke:'#000',strokeThickness:5}).setOrigin(0.5).setDepth(101);
-      const t2=this.add.text(GW/2+sx,GH/2-8,'P / ESC → Continuar',{fontSize:'16px',fill:'#fff',fontFamily:'Arial'}).setOrigin(0.5).setDepth(101);
-      const t3=this.add.text(GW/2+sx,GH/2+22,'Vidas: '+window.GS.lives+' | $'+window.GS.coins+' | Score: '+window.GS.score,{fontSize:'13px',fill:'#FFD700',fontFamily:'Arial'}).setOrigin(0.5).setDepth(101);
-      this.pauseUI=[bg,t1,t2,t3];
+      var bg = this.add.rectangle(GW/2+sx, GH/2, 400, 190, 0x000000, 0.92).setDepth(100);
+      var t1 = this.add.text(GW/2+sx, GH/2-50, '⏸ PAUSADO', { fontSize:'28px', fill:'#FFD700', fontFamily:'Arial Black', stroke:'#000', strokeThickness:5 }).setOrigin(0.5).setDepth(101);
+      var t2 = this.add.text(GW/2+sx, GH/2-8,  'P / ESC → Continuar', { fontSize:'16px', fill:'#fff', fontFamily:'Arial' }).setOrigin(0.5).setDepth(101);
+      var t3 = this.add.text(GW/2+sx, GH/2+22, 'Vidas: '+window.GS.lives+' | $'+window.GS.coins+' | Score: '+window.GS.score, { fontSize:'13px', fill:'#FFD700', fontFamily:'Arial' }).setOrigin(0.5).setDepth(101);
+      this.pauseUI = [bg, t1, t2, t3];
     } else {
       this.physics.resume();
-      if(this.pauseUI){ this.pauseUI.forEach(o=>o.destroy()); this.pauseUI=null; }
+      if (this.pauseUI) { this.pauseUI.forEach(function(o) { o.destroy(); }); this.pauseUI = null; }
     }
-  }
+  },
 
-  // ──────── HUD ────────
-  _hud(){
-    this.game.events.emit('hud',{
-      lvl:'MUNDO '+(window.GS.level+1)+' - '+this.lv.name,
-      pu:this.activePU,
-      bhp:this.bossRef&&!this.bossRef.isDead?this.bossHP:null,
-      bmx:this.bossMaxHP,
-      bnm:this.lv.bossName
+  _hud: function() {
+    this.game.events.emit('hud', {
+      lvl: 'MUNDO ' + (window.GS.level+1) + ' - ' + this.lv.name,
+      pu:  this.activePU,
+      bhp: this.bossRef && !this.bossRef.isDead ? this.bossHP : null,
+      bmx: this.bossMaxHP,
+      bnm: this.lv.bn
     });
-  }
+  },
 
-  // ──────── HELPERS ────────
-  _banner(txt,col,dur){
-    const sx=this.cameras.main.scrollX;
-    const bg=this.add.rectangle(GW/2+sx,GH/2,510,90,0x000,0.88).setDepth(60);
-    const t=this.add.text(GW/2+sx,GH/2,txt,{fontSize:'21px',fill:col,fontFamily:'Arial Black',stroke:'#000',strokeThickness:5,align:'center'}).setOrigin(0.5).setDepth(61);
-    this.tweens.add({targets:[bg,t],alpha:0,duration:dur,onComplete:()=>{ bg.destroy(); t.destroy(); }});
-  }
+  _banner: function(txt, col, dur) {
+    var sx = this.cameras.main.scrollX;
+    var bg = this.add.rectangle(GW/2+sx, GH/2, 510, 90, 0x000000, 0.88).setDepth(60);
+    var t  = this.add.text(GW/2+sx, GH/2, txt, { fontSize:'21px', fill:col, fontFamily:'Arial Black', stroke:'#000', strokeThickness:5, align:'center' }).setOrigin(0.5).setDepth(61);
+    this.tweens.add({ targets: [bg, t], alpha: 0, duration: dur, onComplete: function() { bg.destroy(); t.destroy(); } });
+  },
 
-  _float(x,y,txt,col,dur=700){
-    const t=this.add.text(x,y,txt,{fontSize:'14px',fill:col,fontFamily:'Arial Black',stroke:'#000',strokeThickness:3}).setOrigin(0.5).setDepth(55);
-    this.tweens.add({targets:t,y:y-48,alpha:0,duration:dur,onComplete:()=>t.destroy()});
-  }
+  _float: function(x, y, txt, col, dur) {
+    dur = dur || 700;
+    var t = this.add.text(x, y, txt, { fontSize:'14px', fill:col, fontFamily:'Arial Black', stroke:'#000', strokeThickness:3 }).setOrigin(0.5).setDepth(55);
+    this.tweens.add({ targets: t, y: y-48, alpha: 0, duration: dur, onComplete: function() { t.destroy(); } });
+  },
 
-  // ══════════ UPDATE LOOP ══════════
-  update(){
-    if(this.paused||!this.player||this.player.isDead) return;
+  update: function() {
+    if (this.paused || !this.player || this.player.isDead) return;
 
-    const dt=this.game.loop.delta/1000;
-    const onG=this.player.body.blocked.down;
-    const vx=this.player.body.velocity.x;
-    const run=this.kSh.isDown;
-    const maxS=run?RUN:WALK;
+    var dt  = this.game.loop.delta / 1000;
+    var onG = this.player.body.blocked.down;
+    var vx  = this.player.body.velocity.x;
+    var run = this.kSh.isDown;
+    var maxS = run ? this.maxVX : Math.min(this.maxVX, WALK);
 
-    // Horizontal movement — NES gradual accel/decel
-    if(this.kL.isDown){
-      this.player.facing=-1; this.player.setFlipX(true);
-      this.player.body.velocity.x=Math.max(vx-ACCEL*dt,-maxS);
-    } else if(this.kR.isDown){
-      this.player.facing=1; this.player.setFlipX(false);
-      this.player.body.velocity.x=Math.min(vx+ACCEL*dt,maxS);
+    // Horizontal movement - NES gradual accel/decel
+    if (this.kL.isDown) {
+      this.player.facing = -1;
+      this.player.setFlipX(true);
+      vx = Math.max(vx - ACCEL * dt, -maxS);
+      this.player.body.velocity.x = vx;
+    } else if (this.kR.isDown) {
+      this.player.facing = 1;
+      this.player.setFlipX(false);
+      vx = Math.min(vx + ACCEL * dt, maxS);
+      this.player.body.velocity.x = vx;
     } else {
-      if(Math.abs(vx)<5) this.player.body.velocity.x=0;
-      else this.player.body.velocity.x-=Math.sign(vx)*DRAG*dt;
+      if (Math.abs(vx) < 5) {
+        this.player.body.velocity.x = 0;
+      } else {
+        this.player.body.velocity.x -= Math.sign(vx) * DRAG * dt;
+      }
     }
 
-    // *** FIX: cap velocity manually since we use body.maxVelocity.x ***
-    const mxNow=run?RUN:WALK;
-    if(this.player.body.velocity.x>mxNow)  this.player.body.velocity.x=mxNow;
-    if(this.player.body.velocity.x<-mxNow) this.player.body.velocity.x=-mxNow;
+    // Hard cap velocity (replaces setMaxVelocityX)
+    if (this.player.body.velocity.x >  maxS) this.player.body.velocity.x =  maxS;
+    if (this.player.body.velocity.x < -maxS) this.player.body.velocity.x = -maxS;
 
     // Duck
-    this.player.setScale(1.6,(this.kD.isDown&&onG)?.82:1.6);
+    this.player.setScale(1.6, (this.kD.isDown && onG) ? 0.82 : 1.6);
 
     // Animations
-    if(!this.attacking){
-      try{
-        if(!onG) this.player.play('m_jump',true);
-        else if(Math.abs(vx)>8) this.player.play('m_walk',true);
-        else this.player.play('m_idle',true);
-      }catch(e){}
+    if (!this.attacking) {
+      try {
+        if (!onG)                                  this.player.play('m_jump', true);
+        else if (Math.abs(this.player.body.velocity.x) > 8) this.player.play('m_walk', true);
+        else                                       this.player.play('m_idle', true);
+      } catch(e) {}
     }
 
-    if(onG) this.player.djUsed=false;
+    if (onG) this.player.djUsed = false;
 
     // Enemy AI
-    this.enemies.getChildren().forEach(e=>{
-      if(!e.active||e.isDead) return;
-      const dx=e.x-this.player.x;
-      if(Math.abs(dx)<500){ e.setVelocityX(dx>0?-e.spd:e.spd); e.setFlipX(dx>0); }
-      else{
-        if(e.body.blocked.right||e.body.blocked.left) e._dir*=-1;
-        if(!e._dir) e._dir=-1;
-        e.setVelocityX(e._dir*e.spd*.55); e.setFlipX(e._dir<0);
+    var self = this;
+    this.enemies.getChildren().forEach(function(e) {
+      if (!e.active || e.isDead) return;
+      var dx = e.x - self.player.x;
+      if (Math.abs(dx) < 500) {
+        e.setVelocityX(dx > 0 ? -e.spd : e.spd);
+        e.setFlipX(dx > 0);
+      } else {
+        if (e.body.blocked.right || e.body.blocked.left) e._dir *= -1;
+        if (!e._dir) e._dir = -1;
+        e.setVelocityX(e._dir * e.spd * 0.55);
+        e.setFlipX(e._dir < 0);
       }
-      if((e.body.blocked.right||e.body.blocked.left)&&e.body.blocked.down) e.setVelocityY(JUMP_V*.48);
+      if ((e.body.blocked.right || e.body.blocked.left) && e.body.blocked.down) e.setVelocityY(JUMP_V * 0.48);
     });
 
     // Boss facing
-    if(this.bossRef&&this.bossRef.active&&!this.bossRef.isDead)
-      this.bossRef.setFlipX(this.player.x<this.bossRef.x);
+    if (this.bossRef && this.bossRef.active && !this.bossRef.isDead)
+      this.bossRef.setFlipX(this.player.x < this.bossRef.x);
 
-    // Projectile cleanup
-    this.projGrp.getChildren().forEach(pr=>{ if(pr.y>GH+40||pr.x<-50||pr.x>6000)pr.destroy(); });
+    // Cleanup projectiles
+    this.projGrp.getChildren().forEach(function(pr) {
+      if (pr.y > GH+40 || pr.x < -50 || pr.x > 6000) pr.destroy();
+    });
 
     // Fall death
-    if(this.player.y>GH+40) this._die();
+    if (this.player.y > GH + 40) this._die();
 
-    // Position-based triggers
-    if(!this.allyGiven&&this.player.x>this.allyTrigX){ this.allyGiven=true; this._spawnAlly(); }
-    if(!this.bossSpawned&&this.player.x>this.bossTrigX){ this.bossSpawned=true; this._launchBoss(); }
+    // Position triggers
+    if (!this.allyGiven   && this.player.x > this.allyTrigX) { this.allyGiven   = true; this._spawnAlly();  }
+    if (!this.bossSpawned && this.player.x > this.bossTrigX) { this.bossSpawned = true; this._launchBoss(); }
 
-    // HUD periodic update
-    if(this.game.loop.frame%10===0) this._hud();
+    // HUD periodic
+    if (this.game.loop.frame % 10 === 0) this._hud();
   }
-}
-
-// ════════════════════════════════════════════
-//  INIT
-// ════════════════════════════════════════════
-new Phaser.Game({
-  type:Phaser.AUTO,
-  width:GW, height:GH,
-  backgroundColor:'#0a0a1a',
-  physics:{ default:'arcade', arcade:{gravity:{y:0},debug:false} },
-  scene:[Boot,Title,HUD,Shop,Game],
-  scale:{ mode:Phaser.Scale.FIT, autoCenter:Phaser.Scale.CENTER_BOTH }
 });
+
+// =============================================================
+// START
+// =============================================================
+new Phaser.Game({
+  type:   Phaser.AUTO,
+  width:  GW,
+  height: GH,
+  backgroundColor: '#0a0a1a',
+  physics: { default: 'arcade', arcade: { gravity: { y: 0 }, debug: false } },
+  scene:  [Boot, Title, HUD, Shop, Game],
+  scale:  { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH }
+});
+
 </script>
 </body>
 </html>
