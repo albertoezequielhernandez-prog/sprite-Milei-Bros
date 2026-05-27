@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Diagnóstico Spritesheets</title>
+<style>
+body { background:#111; color:#FFD700; font-family:monospace; padding:20px; }
+h1 { color:#FFD700; margin-bottom:20px; }
+.item { margin:10px 0; padding:10px; background:#222; border-radius:4px; }
+.item img { max-width:100%; margin-top:8px; border:1px solid #444; }
+.dims { color:#00FF00; font-size:18px; font-weight:bold; margin:4px 0; }
+.name { color:#FFF; font-size:14px; }
+.error { color:#FF4444; }
+</style>
+</head>
+<body>
+<h1>🔍 Diagnóstico de Spritesheets — Milei Bros</h1>
+<p>Cargando dimensiones reales de cada imagen...</p>
+<div id="results"></div>
+
+<script>
+var BASE = 'https://albertoezequielhernandez-prog.github.io/sprite-Milei-Bros/';
+
+var sheets = [
+  { name: 'MILEI (jugador)',          url: 'assets/sprites/spritesheets%20milei%20optimizado.png',                            suggestedCols: 13 },
+  { name: 'CUCARACHA K',              url: 'assets/sprites/spritesheets%20cucaracha%20k%20optimizado.png',                   suggestedCols: 7  },
+  { name: 'CUCARACHA ARMADA',         url: 'assets/sprites/spritesheets%20cucaracha%20k%20armada%20optimizado.png',          suggestedCols: 8  },
+  { name: 'SINDICALISTA',             url: 'assets/sprites/spritesheets%20sindicalista%20optmizado.png',                     suggestedCols: 9  },
+  { name: 'DEL CAÑO (boss)',          url: 'assets/sprites/spritesheets%20del%20ca%C3%B1o%20optimizado.png',                 suggestedCols: 4  },
+  { name: 'MASSA (boss)',             url: 'assets/sprites/spritesheets%20massa%20optimizado.png',                           suggestedCols: 4  },
+  { name: 'KICILLOF (boss)',          url: 'assets/sprites/spritesheets%20kicillof%20optimizado.png',                       suggestedCols: 3  },
+  { name: 'CRISTINA (boss)',          url: 'assets/sprites/spritesheets%20cristina%20optimizado.png',                       suggestedCols: 3  },
+  { name: 'LARRETA (boss)',           url: 'assets/sprites/spritesheets%20larreta%20optimizado.png',                        suggestedCols: 3  },
+  { name: 'VILLARRUEL (boss)',        url: 'assets/sprites/spritesheets%20villarruel%20optimizado.png',                     suggestedCols: 3  },
+  { name: 'MORSA - ANIBAL (miniboss)',url: 'assets/sprites/spritesheets%20morsa%20fernandez.png',                            suggestedCols: 3  },
+  { name: 'MORENO (boss AFIP)',       url: 'assets/bosses/spritesheets%20moreno%20optimizado.png',                          suggestedCols: 4  },
+  { name: 'BOSS FMI (boss final)',    url: 'assets/bosses/boss%20fmi.png',                                                  suggestedCols: 4  },
+  { name: 'MACRI GATO',              url: 'assets/sprites/spritesheets%20macri%20gato_macri_transparent%20opti....png',    suggestedCols: 9  },
+  { name: 'POWER-UPS',               url: 'assets/powerups/sprites%20power-ups.png',                                       suggestedCols: 20 },
+];
+
+var results = document.getElementById('results');
+var loaded = 0;
+
+sheets.forEach(function(s) {
+  var div = document.createElement('div');
+  div.className = 'item';
+  div.innerHTML = '<div class="name">📄 ' + s.name + '</div><div class="dims" id="dim_'+loaded+'">Cargando...</div>';
+  results.appendChild(div);
+
+  var img = new Image();
+  var idx = loaded;
+  img.onload = function() {
+    var w = img.naturalWidth;
+    var h = img.naturalHeight;
+    var fw = Math.floor(w / s.suggestedCols);
+    var rows = Math.max(1, Math.round(h / fw));
+    var fh = Math.floor(h / rows);
+    
+    document.getElementById('dim_'+idx).innerHTML = 
+      '📐 Imagen: <b>' + w + ' × ' + h + ' px</b><br>' +
+      '🔲 Con ' + s.suggestedCols + ' cols → frame: <b>' + fw + ' × ' + fh + ' px</b> (' + rows + ' filas)<br>' +
+      '✅ Frames totales detectados: <b>' + (s.suggestedCols * rows) + '</b>';
+    
+    img.style.maxHeight = '120px';
+    img.style.objectFit = 'contain';
+    div.appendChild(img);
+  };
+  img.onerror = function() {
+    document.getElementById('dim_'+idx).innerHTML = '<span class="error">❌ NO CARGÓ — URL incorrecta</span>';
+  };
+  img.src = BASE + s.url;
+  loaded++;
+});
+</script>
+</body>
+</html>
