@@ -31,9 +31,13 @@ canvas{display:block;image-rendering:pixelated}
 
 <script>
 window.onerror = function(msg, src, line) {
-  var e = document.getElementById('err');
-  e.style.display = 'block';
-  e.innerHTML += '<b>ERROR línea ' + line + ':</b> ' + msg + '<br>';
+  // Only show non-CORS errors (line 0 = cross-origin script error, usually audio)
+  if (line > 0) {
+    var e = document.getElementById('err');
+    e.style.display = 'block';
+    e.innerHTML += '<b>ERROR línea ' + line + ':</b> ' + msg + '<br>';
+  }
+  return false; // don't suppress
 };
 </script>
 
@@ -122,10 +126,12 @@ var Boot = new Phaser.Class({
       this.load.image(this._ss[i].raw, BASE + this._ss[i].url);
     }
 
-    // Audio
-    this.load.audio('snd_z', BASE+'assets/music/voz_milei_zurdos.mp3');
-    this.load.audio('snd_v', BASE+'assets/music/voz_milei_viva_libertad.mp3');
-    this.load.audio('snd_c', BASE+'assets/music/voz_milei_completo.mp3');
+    // Audio - wrapped in try/catch to prevent crashes if files unavailable
+    try {
+      this.load.audio('snd_z', BASE+'assets/music/voz_milei_zurdos.mp3');
+      this.load.audio('snd_v', BASE+'assets/music/voz_milei_viva_libertad.mp3');
+      this.load.audio('snd_c', BASE+'assets/music/voz_milei_completo.mp3');
+    } catch(e) { console.warn('Audio load error:', e); }
   },
 
   create: function() {
@@ -136,16 +142,35 @@ var Boot = new Phaser.Class({
     g.generateTexture('px', 4, 4);
     g.destroy();
 
-    // Convert raw images to spritesheet textures
+    // Convert raw images → transparent spritesheets (removes white/light backgrounds)
     for (var i = 0; i < this._ss.length; i++) {
       var s = this._ss[i];
       try {
         var tex = this.textures.get(s.raw);
-        var img = tex.getSourceImage();
-        var fw  = Math.floor(img.width  / s.c);
-        var fh  = Math.floor(img.height / s.r);
-        console.log('SS ' + s.key + ': ' + img.width + 'x' + img.height + ' => frame ' + fw + 'x' + fh);
-        this.textures.addSpriteSheet(s.key, img, { frameWidth: fw, frameHeight: fh });
+        var srcImg = tex.getSourceImage();
+        var fw = Math.floor(srcImg.width  / s.c);
+        var fh = Math.floor(srcImg.height / s.r);
+        console.log('SS ' + s.key + ': ' + srcImg.width + 'x' + srcImg.height + ' => frame ' + fw + 'x' + fh);
+
+        // Remove white/near-white background via canvas
+        var cv = document.createElement('canvas');
+        cv.width  = srcImg.width;
+        cv.height = srcImg.height;
+        var ctx = cv.getContext('2d');
+        ctx.drawImage(srcImg, 0, 0);
+        var idata = ctx.getImageData(0, 0, cv.width, cv.height);
+        var d = idata.data;
+        for (var p = 0; p < d.length; p += 4) {
+          var r = d[p], g = d[p+1], b = d[p+2];
+          // Remove white and near-white, also checkerboard grey
+          if ((r > 220 && g > 220 && b > 220) ||
+              (r > 180 && g > 180 && b > 180 && Math.abs(r-g)<15 && Math.abs(g-b)<15)) {
+            d[p+3] = 0;
+          }
+        }
+        ctx.putImageData(idata, 0, 0);
+
+        this.textures.addSpriteSheet(s.key, cv, { frameWidth: fw, frameHeight: fh });
       } catch(e) {
         console.warn('Failed spritesheet: ' + s.key, e.message);
       }
@@ -249,7 +274,7 @@ var Title = new Phaser.Class({
     this.tweens.add({ targets: ttl, scaleX: 1.04, scaleY: 1.04, duration: 900, yoyo: true, repeat: -1 });
 
     // Hero
-    var hero = this.add.sprite(GW/2, GH/2-10, 'milei').setScale(0.5);
+    var hero = this.add.sprite(GW/2, GH/2-20, 'milei').setScale(0.45);
     try { hero.play('m_idle'); } catch(e) {}
     this.tweens.add({ targets: hero, y: GH/2-22, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
@@ -529,10 +554,10 @@ var Game = new Phaser.Class({
     this.scene.launch('HUD');
     this._hud();
 
-    // Audio
-    this.sZ = this.sound.add('snd_z', { volume: 0.9 });
-    this.sV = this.sound.add('snd_v', { volume: 0.9 });
-    this.sC = this.sound.add('snd_c', { volume: 0.9 });
+    // Audio - null-safe initialization
+    try { this.sZ = this.sound.add('snd_z', { volume: 0.9 }); } catch(e) { this.sZ = null; }
+    try { this.sV = this.sound.add('snd_v', { volume: 0.9 }); } catch(e) { this.sV = null; }
+    try { this.sC = this.sound.add('snd_c', { volume: 0.9 }); } catch(e) { this.sC = null; }
 
     // Fiscal decay
     var scene = this;
@@ -674,7 +699,7 @@ var Game = new Phaser.Class({
     this.combo++;
     if (this.combo >= 5) {
       this._banner('¡COMBO x5!\n¡AFUERA!', '#FFD700', 1500);
-      if (!this.sV.isPlaying) this.sV.play();
+      if (this.sV && !this.sV.isPlaying) try{this.sV.play();}catch(e){}
       this.combo = 0;
     }
     var self = this;
@@ -716,7 +741,7 @@ var Game = new Phaser.Class({
       case 'dollar':
       case 'chainsaw':
         this.chainsawOn = true;
-        if (!this.sZ.isPlaying) this.sZ.play();
+        if (this.sZ && !this.sZ.isPlaying) try{this.sZ.play();}catch(e){}
         this._banner('¡MOTOSIERRA!\n¡Zurdos tiemblen!', '#FFD700', 2000);
         this.time.delayedCall(type === 'chainsaw' ? 20000 : 15000, function() { self.chainsawOn = false; self.activePU = null; self._hud(); });
         break;
@@ -859,11 +884,11 @@ var Game = new Phaser.Class({
       gs.coins  += 20;
       if (gs.level >= LEVELS.length - 1) {
         self._banner('🏆 ¡JUEGO COMPLETADO!\n¡VIVA LA LIBERTAD CARAJO!', '#FFD700', 6000);
-        self.sC.play();
-        self.time.delayedCall(7000, function() { self.scene.stop('HUD'); self.scene.start('Title'); });
+        if (self.sC) try{self.sC.play();}catch(e){}
+        self.time.delayedCall(7000, function() { try{self.scene.stop('HUD');}catch(e){} try{self.scene.start('Title');}catch(e){window.location.reload();} });
       } else {
         self._banner('¡NIVEL COMPLETADO!\n¡LIBERTAD!', '#FFD700', 2500);
-        if (!self.sV.isPlaying) self.sV.play();
+        if (self.sV && !self.sV.isPlaying) try{self.sV.play();}catch(e){}
         self.time.delayedCall(3200, function() { gs.level++; self.scene.stop('HUD'); self.scene.start('Shop'); });
       }
     });
@@ -894,8 +919,11 @@ var Game = new Phaser.Class({
     var self = this;
     this.time.delayedCall(5000, function() {
       window.GS = { lives:3, coins:0, fiscal:50, level:0, score:0, pendingPU:null };
-      self.scene.stop('HUD');
-      self.scene.start('Title');
+      try { self.scene.stop('HUD'); } catch(e) {}
+      try {
+        self.scene.stop('Game');
+        self.scene.start('Title');
+      } catch(e) { window.location.reload(); }
     });
   },
 
