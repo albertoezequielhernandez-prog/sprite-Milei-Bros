@@ -152,7 +152,7 @@ var Boot = new Phaser.Class({
         var fh = Math.floor(srcImg.height / s.r);
         console.log('SS ' + s.key + ': ' + srcImg.width + 'x' + srcImg.height + ' => frame ' + fw + 'x' + fh);
 
-        // Remove white/near-white background via canvas
+        // Remove white/near-white/checkerboard backgrounds via canvas
         var cv = document.createElement('canvas');
         cv.width  = srcImg.width;
         cv.height = srcImg.height;
@@ -162,15 +162,23 @@ var Boot = new Phaser.Class({
         var d = idata.data;
         for (var p = 0; p < d.length; p += 4) {
           var r = d[p], g = d[p+1], b = d[p+2];
-          // Remove white and near-white, also checkerboard grey
-          if ((r > 220 && g > 220 && b > 220) ||
-              (r > 180 && g > 180 && b > 180 && Math.abs(r-g)<15 && Math.abs(g-b)<15)) {
-            d[p+3] = 0;
-          }
+          var isWhite = (r > 200 && g > 200 && b > 200);
+          var isGrey  = (Math.abs(r-g)<20 && Math.abs(g-b)<20 && r > 170);
+          var isCheckL= (r > 210 && g > 210 && b > 210);
+          var isCheckD= (r > 170 && r < 210 && g > 170 && g < 210 && b > 170 && b < 210 && Math.abs(r-g)<15);
+          if (isWhite || isGrey || isCheckL || isCheckD) d[p+3] = 0;
         }
         ctx.putImageData(idata, 0, 0);
 
-        this.textures.addSpriteSheet(s.key, cv, { frameWidth: fw, frameHeight: fh });
+        // For spritesheets with frame number labels at bottom,
+        // crop frameHeight to remove labels (bottom 18% of each frame)
+        var croppedFh = fh;
+        if (s.key === 'milei')    croppedFh = Math.floor(fh * 0.78);
+        if (s.key === 'cuca_k')   croppedFh = Math.floor(fh * 0.82);
+        if (s.key === 'cuca_arm') croppedFh = Math.floor(fh * 0.88);
+        if (s.key === 'sind')     croppedFh = Math.floor(fh * 0.82);
+
+        this.textures.addSpriteSheet(s.key, cv, { frameWidth: fw, frameHeight: croppedFh });
       } catch(e) {
         console.warn('Failed spritesheet: ' + s.key, e.message);
       }
@@ -196,7 +204,7 @@ var Boot = new Phaser.Class({
   _buildAnims: function() {
     var a = this._anim.bind(this);
     // Milei
-    a('m_idle', 'milei', 0, 1,  4,  true);
+    a('m_idle', 'milei', 1, 1,  4,  true);  // frame 1 = idle without label
     a('m_walk', 'milei', 2, 5,  12, true);
     a('m_jump', 'milei', 6, 6,  1,  true);
     a('m_atk',  'milei', 7, 10, 14, false);
@@ -275,8 +283,9 @@ var Title = new Phaser.Class({
 
     // Hero
     var hero = this.add.sprite(GW/2, GH/2-20, 'milei').setScale(0.45);
-    try { hero.play('m_idle'); } catch(e) {}
-    this.tweens.add({ targets: hero, y: GH/2-22, duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    // Use walk animation in title so frame number label doesn't show
+    try { hero.play('m_walk'); } catch(e) { try { hero.play('m_idle'); } catch(e2) {} }
+    this.tweens.add({ targets: hero, y: GH/2-32, duration: 600, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
 
     // Enemy cucarachas
     try {
@@ -496,7 +505,7 @@ var Game = new Phaser.Class({
     // ── PLAYER ──
     // NOTE: We do NOT chain physics methods. Each call on its own line.
     this.player = this.physics.add.sprite(130, GH-140, 'milei');
-    this.player.setScale(0.28);  // frame=347px, 0.28 scale = ~97px player height
+    this.player.setScale(0.30);  // frame=347px cropped, 0.30 scale = ~82px player
     this.player.setCollideWorldBounds(true);
     this.player.setDragX(DRAG);
     this.player.setDepth(10);
@@ -1038,7 +1047,7 @@ var Game = new Phaser.Class({
     if (this.player.body.velocity.x < -maxS) this.player.body.velocity.x = -maxS;
 
     // Duck
-    var scaleY = (this.kD.isDown && onG) ? 0.20 : 0.28; this.player.setScale(0.28, scaleY);
+    var scaleY = (this.kD.isDown && onG) ? 0.22 : 0.30; this.player.setScale(0.30, scaleY);
 
     // Animations
     if (!this.attacking) {
