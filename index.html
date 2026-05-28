@@ -351,8 +351,15 @@ create:function(){
   var bgTex=this.textures.get(lv.bg).getSourceImage();
   var bgScale=GH/bgTex.height;
   var bgTW=Math.ceil(bgTex.width*bgScale);
+  // ═══ EDICIÓN 5 ═══════════════════════════════════════════════════════════════
+  // Tint multiplicativo 0x686878 (cool dusk) en el background:
+  // - Darken el fondo a ~41% de brillo (saca el "ruido visual")
+  // - Desatura los colores cálidos del bg (marrones/rosas → azulinos)
+  // - Las plataformas y enemigos (sin tint) quedan con contraste cálido/frío
+  // - 0 draw calls extra, performance idéntica
+  // ═════════════════════════════════════════════════════════════════════════════
   for(var bx=0;bx<WW+bgTW;bx+=bgTW)
-    this.add.image(bx,GH/2,lv.bg).setScale(bgScale).setOrigin(0,0.5).setScrollFactor(0.28);
+    this.add.image(bx,GH/2,lv.bg).setScale(bgScale).setOrigin(0,0.5).setScrollFactor(0.28).setTint(0x686878);
 
   // GROUND — full width strip using level colors
   var gr=this.add.graphics();
