@@ -50,6 +50,13 @@ var LEVELS=[
 // ══════════════════════════════════
 var Boot=new Phaser.Class({Extends:Phaser.Scene,initialize:function(){Phaser.Scene.call(this,'Boot');},
 preload:function(){
+  // ═══ EDICIÓN 1 ═══════════════════════════════════════════════════════════════
+  // CRÍTICO: habilitar CORS para que el canvas no quede "tainted"
+  // y getImageData() pueda procesar los píxeles del damero.
+  // GitHub Pages devuelve Access-Control-Allow-Origin: * → esto SÍ funciona.
+  this.load.crossOrigin = 'anonymous';
+  // ═════════════════════════════════════════════════════════════════════════════
+
   var pb=document.getElementById('pb'),pct=document.getElementById('pct');
   this.load.on('progress',function(v){pb.style.width=(v*100)+'%';pct.textContent=Math.floor(v*100)+'%';});
   this.load.on('complete',function(){document.getElementById('load').style.display='none';});
@@ -70,7 +77,8 @@ preload:function(){
   // Spritesheets as raw images — processed in create() to remove white bg
   // Format: [rawKey, url, cols, rows, labelCrop(0-1 fraction to remove from bottom)]
   this._ss=[
-    ['r_milei',   'assets/sprites/spritesheets%20milei%20optimizado.png',           13,1,0.14],
+    // ═══ EDICIÓN 3: Crop subido a 0.18 para eliminar el label "01" en Milei ═══
+    ['r_milei',   'assets/sprites/spritesheets%20milei%20optimizado.png',           13,1,0.18],
     ['r_ck',      'assets/sprites/spritesheets%20cucaracha%20k%20optimizado.png',    3,2,0.10],
     ['r_ca',      'assets/sprites/spritesheets%20cucaracha%20k%20armada%20optimizado.png',8,1,0],
     ['r_si',      'assets/sprites/spritesheets%20sindicalista%20optmizado.png',      9,1,0],
@@ -105,29 +113,53 @@ create:function(){
                r_la:'larreta',r_vi:'villarruel',r_mo:'morsa',r_mr:'moreno',
                r_fi:'boss_fmi',r_macri:'macri',r_pups:'pups'};
 
+  // ═══ EDICIÓN 2 ═══════════════════════════════════════════════════════════════
+  // Threshold inteligente: limpia whites + damero claro (~204) + damero oscuro (~153)
+  // Criterio: bajo color (R≈G≈B con diff <14) Y luminancia alta (minC >=140)
+  // Esto preserva piel/pelo/ropa que tienen alta saturación (diff>>14)
+  // ═════════════════════════════════════════════════════════════════════════════
   this._ss.forEach(function(s){
     var raw=s[0],cols=s[2],rows=s[3],crop=s[4],key=KEY_MAP[raw];
     try{
       var src=scene.textures.get(raw).getSourceImage();
       var fw=Math.floor(src.width/cols);
       var fh=Math.floor(src.height/rows);
-      var useFh=Math.floor(fh*(1-crop)); // crop label area from bottom
+      var useFh=Math.floor(fh*(1-crop));
 
       var cv=document.createElement('canvas');
       cv.width=src.width; cv.height=src.height;
       var ctx=cv.getContext('2d');
       ctx.drawImage(src,0,0);
 
-      // Remove pure white (>245 on all channels) — safe threshold
-      // Skin tones have G<240 and B<220, so this won't remove character colors
+      // === LIMPIEZA AGRESIVA pero SEGURA del fondo ===
+      // Quita: blanco puro, damero claro (~204), damero oscuro (~153)
+      // Preserva: colores reales del sprite (piel, pelo, ropa, banderas)
       var id=ctx.getImageData(0,0,cv.width,cv.height),d=id.data;
+      var removed=0;
       for(var p=0;p<d.length;p+=4){
-        if(d[p]>245&&d[p+1]>245&&d[p+2]>245) d[p+3]=0;
+        var r=d[p],g=d[p+1],b=d[p+2];
+        var maxC=Math.max(r,g,b),minC=Math.min(r,g,b),diff=maxC-minC;
+        // Es gris/blanco si los 3 canales están cerca entre sí (diff<14)
+        // y la luminancia es >=140 (cubre 153, 204, 255 — damero/blanco)
+        if(diff<14 && minC>=140){
+          d[p+3]=0; removed++;
+        }
       }
       ctx.putImageData(id,0,0);
       scene.textures.addSpriteSheet(key,cv,{frameWidth:fw,frameHeight:useFh});
-      console.log('✓',key,src.width+'x'+src.height,'→ frame',fw+'x'+useFh);
-    }catch(e){console.error('✗',key,e.message);}
+      console.log('✓',key,src.width+'×'+src.height,'→ frame',fw+'×'+useFh,'| pix limpios:',removed);
+    }catch(e){
+      console.error('✗ FALLO procesando',key,'-',e.message);
+      // FALLBACK: si falla (CORS u otro), registra el spritesheet sin procesar
+      // así el juego no crashea, solo se ve con damero hasta arreglarlo
+      try{
+        var src2=scene.textures.get(raw).getSourceImage();
+        scene.textures.addSpriteSheet(key,src2,{
+          frameWidth:Math.floor(src2.width/cols),
+          frameHeight:Math.floor(src2.height/rows*(1-crop))
+        });
+      }catch(e2){}
+    }
   });
 
   // Generate "$" coin texture
@@ -407,19 +439,27 @@ _buildWorld:function(WW,lv){
   plats.forEach(function(p){this._drawPlat(p.x,p.y,p.w,24,sc,tc);},this);
 },
 
+// ═══ EDICIÓN 4 ═══════════════════════════════════════════════════════════════
+// Plataformas con outline negro grueso + brillo superior para máxima legibilidad
+// sobre fondos complejos (escritorios, paredes con detalles, etc.)
+// ═════════════════════════════════════════════════════════════════════════════
 _drawPlat:function(cx,cy,w,h,col,topCol){
   var g=this.add.graphics().setDepth(2);
-  // Shadow
-  g.fillStyle(0x000000,0.3); g.fillRect(cx-w/2+4,cy-h/2+4,w,h);
-  // Body
+  // Sombra proyectada (más fuerte para destacar del fondo)
+  g.fillStyle(0x000000,0.55); g.fillRect(cx-w/2+5,cy-h/2+6,w,h);
+  // Outline negro grueso (CLAVE para legibilidad sobre fondos complejos)
+  g.fillStyle(0x000000,1); g.fillRect(cx-w/2-2,cy-h/2-2,w+4,h+4);
+  // Cuerpo principal
   g.fillStyle(col,1); g.fillRect(cx-w/2,cy-h/2,w,h);
-  // Top highlight
-  g.fillStyle(topCol,1); g.fillRect(cx-w/2,cy-h/2,w,5);
-  // Bottom shadow line
-  g.fillStyle(0x000000,0.25); g.fillRect(cx-w/2,cy+h/2-4,w,4);
-  // Panel lines (decorative)
-  g.fillStyle(0x000000,0.12);
-  for(var lx=cx-w/2+16;lx<cx+w/2-8;lx+=18) g.fillRect(lx,cy-h/2+6,2,h-10);
+  // Borde superior brillante (lectura como "piso pisable")
+  g.fillStyle(topCol,1); g.fillRect(cx-w/2,cy-h/2,w,6);
+  // Brillo especular fino arriba (efecto NES/SNES)
+  g.fillStyle(0xFFFFFF,0.4); g.fillRect(cx-w/2+2,cy-h/2+1,w-4,2);
+  // Sombra interior abajo
+  g.fillStyle(0x000000,0.4); g.fillRect(cx-w/2,cy+h/2-5,w,5);
+  // Panel lines decorativas (sutiles)
+  g.fillStyle(0x000000,0.15);
+  for(var lx=cx-w/2+18;lx<cx+w/2-10;lx+=22) g.fillRect(lx,cy-h/2+8,2,h-14);
   // Physics body
   var body=this.platGrp.create(cx,cy,'coin').setDisplaySize(w,h).setAlpha(0.001);
   body.refreshBody();
